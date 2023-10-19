@@ -17,25 +17,33 @@ ExpData(processed_data)
 ExpData(processed_data, type = 2)
 ```
 ```{r}
-ExpNumViz(processed_data[processed_data$spCode == 81,][1:50], Page = c(2, 2))
+ExpData(processed_data[processed_data$spCode == 91,][1:51], type = 2)
+ExpData(processed_data[processed_data$spCode == 81,][1:51], type = 2)
 ```
 ```{r}
-ExpNumViz(processed_data[processed_data$spCode == 91,][1:50], Page = c(2, 2))
+ExpNumViz(processed_data[processed_data$spCode == 81,][1:51], Page = c(2, 2))
 ```
 ```{r}
-ExpCatViz(processed_data[processed_data$spCode == 81,][1:50])
+ExpNumViz(processed_data[processed_data$spCode == 91,][1:51], Page = c(2, 2))
 ```
 ```{r}
-ExpCatViz(processed_data[processed_data$spCode == 91,][1:50])
+ExpCatViz(processed_data[processed_data$spCode == 81,][1:51][-c(4, 5, 6, 7, 8, 12, 13, 37, 41)], clim = 200)
 ```
 
 
-
-
-
-
-
-
-
-
-
+```{r}
+ExpCatViz(processed_data[processed_data$spCode == 91,][1:51][-c(4, 5, 6, 7, 8, 12, 13, 40, 41)], clim = 100)
+```
+```{r}
+# forkLength, totalLength, weight, girth, dorsoLatHeight, airbladderTotalLength, airBladderWidth
+ExpNumViz(data.frame(lapply(processed_data[processed_data$spCode == 81,][c(4, 5, 6, 7, 8, 12, 13)], as.numeric)))
+```
+```{r}
+ExpNumViz(data.frame(lapply(processed_data[processed_data$spCode == 91,][c(4, 5, 6, 7, 8, 12, 13)], as.numeric)))
+```
+```{r}
+ExpNumViz(processed_data[processed_data$spCode == 81,][52:477], Page = c(2, 2))
+```
+```{r}
+ExpNumViz(processed_data[processed_data$spCode == 91,][52:477], Page = c(2, 2))
+```
