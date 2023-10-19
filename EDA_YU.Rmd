@@ -1,0 +1,178 @@
+---
+title: "EDA_YU_Zhang"
+author: "Yu Zhang"
+date: "2023/10/13"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# load("processed_AnalysisData.Rdata")
+```
+
+```{r fishname}
+unique_fish <- unique(processed_data$fishNum)
+unique_fish
+LT <- unique_fish[1:32]
+LWF <- unique_fish[33:64]
+length(unique_fish) # 64
+#64 unique fish name: LT, LWF
+LT
+LWF
+```
+
+```{r fish_length}
+unique_len <- unique(processed_data$totalLength)
+unique_len
+length(unique_len) # 62
+
+fish_len <- c()
+
+for (name in unique_fish) {
+  len <- processed_data$totalLength[processed_data$fishNum == name][1]
+  fish_len <- c(fish_len, len)
+  
+}
+
+fish_len
+
+#LT1_length <- processed_data$totalLength[processed_data$fishNum == "LT001"]
+#LT231_length <- processed_data$totalLength[processed_data$fishNum == "LT23001"]
+```
+```{r}
+processed_data$totalLength[processed_data$fishNum == "LT006"][1]
+processed_data$totalLength[processed_data$fishNum == "LT011"][1]
+```
+
+```{r}
+processed_data$totalLength[processed_data$fishNum == "LT001"][1]
+processed_data$totalLength[processed_data$fishNum == "LT23001"][1]
+
+processed_data$totalLength[processed_data$fishNum == "LT003"][1]
+processed_data$totalLength[processed_data$fishNum == "LT23003"][1]
+```
+```{r}
+sex_ <- c()
+
+for (name in LT) {
+  sex <- processed_data$sex[processed_data$fishNum == name][1]
+  sex_all <- c(sex_all, sex)
+}
+sex_all
+```
+
+
+
+```{r fish_sex LT}
+LT_names <- paste0("LT", sprintf("%03d", c(1, 3:21)))
+
+LT_sex <- c()
+
+for (name in LT) {
+  sex <- processed_data$sex[processed_data$fishNum == name][1]
+  LT_sex <- c(LT_sex, sex)
+}
+
+LT_sex
+
+```
+
+```{r fish_sex LT 2}
+# Count the number of males (1s) and females (2s)
+male_count <- sum(LT_sex == 1) # 13
+female_count <- sum(LT_sex == 2) # 19
+
+# Create a bar plot
+barplot(height = c(male_count, female_count),
+        names.arg = c("Males", "Females"),
+        xlab = "Gender",
+        ylab = "Count",
+        main = "Gender Distribution for LT Fish")
+```
+
+```{r}
+LWF_names <- paste0("LWF", sprintf("%03d", 1:15))
+LWF_names
+
+LWF_sex <- c()
+
+for (name in LWF) {
+  sex <- processed_data$sex[processed_data$fishNum == name][1]
+  LWF_sex <- c(LWF_sex, sex)
+}
+
+LWF_sex
+```
+
+
+```{r}
+# Count the number of males (1s) and females (2s)
+male_count <- sum(LWF_sex == 1) # 17
+female_count <- sum(LWF_sex == 2) # 15
+
+# Create a bar plot
+barplot(height = c(male_count, female_count),
+        names.arg = c("Males", "Females"),
+        xlab = "Gender",
+        ylab = "Count",
+        main = "Gender Distribution for LWF Fish")
+```
+```{r length}
+LT_len <- c()
+
+for (name in LT) {
+  len <- processed_data$totalLength[processed_data$fishNum == name][1]
+  LT_len <- c(LT_len, len)
+}
+LT_len
+
+hist(na.omit(LT_len), main = "Histogram of LT Length",
+     xlab = "Length", ylab = "Frequency",
+     col = "lightblue", border = "black", breaks = 15)
+```
+```{r length1}
+LWF_len <- c()
+
+for (name in LWF) {
+  len <- processed_data$totalLength[processed_data$fishNum == name][1]
+  LWF_len <- c(LWF_len, len)
+}
+LWF_len
+
+hist(na.omit(LWF_len), main = "Histogram of LWF Length",
+     xlab = "Length", ylab = "Frequency",
+     col = "lightgreen", border = "black", breaks = 15)
+```
+```{r weight}
+LT_weight <- c()
+
+for (name in LT) {
+  weight <- processed_data$weight[processed_data$fishNum == name][1]
+  LT_weight <- c(LT_weight, weight)
+}
+
+LT_weight
+
+hist(na.omit(LT_weight), main = "Histogram of LT weight",
+     xlab = "Weight", ylab = "Frequency",
+     col = "lightblue", border = "black", breaks = 15)
+
+```
+```{r}
+LWF_weight <- c()
+
+for (name in LWF) {
+  weight <- processed_data$weight[processed_data$fishNum == name][1]
+  LWF_weight <- c(LWF_weight, weight)
+}
+
+LWF_weight
+
+hist(na.omit(LWF_weight), main = "Histogram of LWF weight",
+     xlab = "Weight", ylab = "Frequency",
+     col = "lightgreen", border = "black", breaks = 15)
+```
+
