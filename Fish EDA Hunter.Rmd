@@ -1,29 +1,126 @@
 ---
-title: "Fish EDA Hunter"
+title: "Fish EDA"
 output: pdf_document
-date: "2023-10-19"
+date: "2023-10-15"
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(rpart)
+library(partykit)
+library(ggplot2)
+library(MASS)
+library(leaps)
+
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r}
+load("C:/Users/aethe/Desktop/coursebook/Course materials/STA490/processed_AnalysisData.Rdata") 
+fish <- processed_data
+missing_count <- colSums(is.na(fish))
+missing_count <- missing_count[missing_count > 0]
+all_fish <- unique(fish$fishNum)
 
-```{r cars}
-summary(cars)
+missing <- c(sum(is.na(fish$girth)),sum(is.na(fish$airbladderTotalLength)), 
+             sum(is.na(fish$airBladderWidth)),sum(is.na(fish$deltaRange)), 
+             sum(is.na(fish$deltaMinAng)), sum(is.na(fish$deltaMajAng)),
+             sum(is.na(fish$aspectAngle)),sum(is.na(fish$F90)), 
+             sum(is.na(fish$F90.5)), sum(is.na(fish$F91)))
+
+cate = c(names(missing_count)[1:9], "F91 to F170")
+
+summary_missing = data.frame(cate, missing)
+
+kable(summary_missing, col.names = c("Variables","Number of missing values"), caption = "Summary of missing values")
+
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
+```{r,fig.height = 10, fig.width = 20}
+plot(fish$Target_true_depth, fish$TS_mean, xlab = "Corrected depth of fish in meters", ylab = "Mean target strength")
+title("Scatterplot of corrected depth of the target versus \n mean target strength")
 
-```{r pressure, echo=FALSE}
-plot(pressure)
 ```
+```{r}
+fish_mean_TS_mean <- fish %>%
+  group_by(fishNum) %>%
+  summarize( mean = mean(TS_mean, na.rm =T))
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+fish_airbladder_length <- fish %>%
+  group_by(fishNum) %>%
+  summarize( size = mean(airbladderTotalLength, na.rm =T))
+  
+fish_ts_airbladder_length <- inner_join(fish_mean_TS_mean, fish_airbladder_length, by = "fishNum")  
+plot(fish_ts_airbladder_length$size,fish_ts_airbladder_length$mean, xlab = "Fishs' airbladder length", ylab = "Mean of mean target strength")
+title("Scatter plot of Fish airbladder length versus \n mean of mean target strength")
+
+fish_airbladder_width <- fish %>%
+  group_by(fishNum) %>%
+  summarize( size = mean(airBladderWidth, na.rm =T))
+fish_ts_airbladder_width <- inner_join(fish_mean_TS_mean, fish_airbladder_width, by = "fishNum")  
+plot(fish_ts_airbladder_width$size,fish_ts_airbladder_width$mean, xlab = "Fishs' airbladder width", ylab = "Mean of mean target strength")
+title("Scatter plot of Fish airbladder width versus \n mean of mean target strength")
+
+
+
+sample_LT <- processed_data %>% filter(fishNum == "LT009" |fishNum == "LT010" | fishNum == "LT011")
+missing_count <- colSums(is.na(sample_LT))
+frequency <- seq(45, 260, by = 0.5)
+elements_to_remove <- seq(170.5, 172.5, by = 0.5)
+frequency <- frequency[!frequency %in% elements_to_remove]
+
+LT009 <- sample_LT %>% filter(fishNum == "LT009")
+unique(LT009$airbladderTotalLength)
+mean(LT009$airbladderTotalLength)
+LT009_median <-sapply(LT009[,52:477], median)
+LT009_75 <- sapply(LT009[,52:477], function(col) quantile(col, 0.75))
+LT009_25 <- sapply(LT009[,52:477], function(col) quantile(col, 0.25))
+summary_LT009 <- data.frame(Frequncy = frequency, Median = LT009_median, percentile_75 = LT009_75, percentile_25 = LT009_25)
+
+LT010 <- sample_LT %>% filter(fishNum == "LT010")
+LT010_median <-sapply(LT010[,52:477], median)
+LT010_75 <- sapply(LT010[,52:477], function(col) quantile(col, 0.75))
+LT010_25 <- sapply(LT010[,52:477], function(col) quantile(col, 0.25))
+summary_LT010 <- data.frame(Frequncy = frequency, Median = LT010_median, percentile_75 = LT010_75, percentile_25 = LT010_25)
+
+
+LT011 <- sample_LT %>% filter(fishNum == "LT011")
+LT011_median <-sapply(LT011[,52:477], median)
+LT011_75 <- sapply(LT011[,52:477], function(col) quantile(col, 0.75))
+LT011_25 <- sapply(LT011[,52:477], function(col) quantile(col, 0.25))
+summary_LT011 <- data.frame(Frequncy = frequency, Median = LT011_median, percentile_75 = LT011_75, percentile_25 = LT011_25)
+
+color_data1 <- data.frame(
+               color = c("green", "red", "cyan"),
+               label = c("LT009", "LT010", "LT011")
+)
+
+plot <- ggplot() +
+     geom_line(data = summary_LT009, aes(x = frequency, y = summary_LT009$Median, color = "LT009")) +
+     geom_line(data = summary_LT009, aes(x = frequency, y = summary_LT009$percentile_75), color = "#98FB98") +
+     geom_line(data = summary_LT009, aes(x = frequency, y = summary_LT009$percentile_25), color = "#98FB98") +
+     geom_line(data = summary_LT010, aes(x = frequency, y = summary_LT010$Median, color = "LT010")) +
+     geom_line(data = summary_LT010, aes(x = frequency, y = summary_LT010$percentile_75), color = "#FFC0CB") +
+     geom_line(data = summary_LT010, aes(x = frequency, y = summary_LT010$percentile_25), color = "#FFC0CB") +
+     geom_line(data = summary_LT011, aes(x = frequency, y = summary_LT011$Median, color = "LT011")) +
+     geom_line(data = summary_LT011, aes(x = frequency, y = summary_LT011$percentile_75), color = "#AFEEEE") +
+     geom_line(data = summary_LT011, aes(x = frequency, y = summary_LT011$percentile_25), color = "#AFEEEE") +
+     geom_ribbon(aes(x = frequency, ymin = summary_LT009$percentile_25, ymax =summary_LT009$percentile_75), fill = "#98FB98", alpha = 0.4)+
+     geom_ribbon(aes(x = frequency, ymin = summary_LT010$percentile_25, ymax =summary_LT010$percentile_75), fill = "#FFC0CB", alpha = 0.4)+
+     geom_ribbon(aes(x = frequency, ymin = summary_LT011$percentile_25, ymax =summary_LT011$percentile_75), fill = "#AFEEEE", alpha = 0.4)+
+     labs(title = "Variation in target strength from three individual Lake Trout", x = "Frequency", y = "Target Strength") +
+     scale_color_manual(values = color_data1$color, labels = color_data1$label) +
+     guides(color = guide_legend(title = "Label", ncol = 1, title.position = "top", label.position = "right") ) +
+     theme_minimal()
+print(plot)
+
+
+
+
+
+
+```
