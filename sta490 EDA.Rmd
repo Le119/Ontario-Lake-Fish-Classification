@@ -20,8 +20,7 @@ library(leaps)
 ```{r}
 load("/Users/luoyihang/Downloads/sta490/processed_AnalysisData.Rdata") 
 fish <- processed_data
-missing_count <- colSums(is.na(fish))
-missing_count <- missing_count[missing_count > 0]
+
 unique(fish$fishNum)
 str(fish)
 ```
