@@ -13,7 +13,6 @@ library(partykit)
 library(ggplot2)
 library(MASS)
 library(leaps)
-
 ```
 
 
@@ -23,20 +22,8 @@ load("/Users/luoyihang/Downloads/sta490/processed_AnalysisData.Rdata")
 fish <- processed_data
 missing_count <- colSums(is.na(fish))
 missing_count <- missing_count[missing_count > 0]
-all_fish <- unique(fish$fishNum)
-
-missing <- c(sum(is.na(fish$girth)),sum(is.na(fish$airbladderTotalLength)), 
-             sum(is.na(fish$airBladderWidth)),sum(is.na(fish$deltaRange)), 
-             sum(is.na(fish$deltaMinAng)), sum(is.na(fish$deltaMajAng)),
-             sum(is.na(fish$aspectAngle)),sum(is.na(fish$F90)), 
-             sum(is.na(fish$F90.5)), sum(is.na(fish$F91)))
-
-cate = c(names(missing_count)[1:9], "F91 to F170")
-
-summary_missing = data.frame(cate, missing)
-
-kable(summary_missing, col.names = c("Variables","Number of missing values"), caption = "Summary of missing values")
-
+unique(fish$fishNum)
+str(fish)
 ```
 
 
