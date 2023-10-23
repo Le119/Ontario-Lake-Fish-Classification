@@ -1,0 +1,77 @@
+---
+title: "sta490 EDA"
+output: pdf_document
+date: "2023-10-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(rpart)
+library(partykit)
+library(ggplot2)
+library(MASS)
+library(leaps)
+
+```
+
+
+
+```{r}
+load("/Users/luoyihang/Downloads/sta490/processed_AnalysisData.Rdata") 
+fish <- processed_data
+missing_count <- colSums(is.na(fish))
+missing_count <- missing_count[missing_count > 0]
+all_fish <- unique(fish$fishNum)
+
+missing <- c(sum(is.na(fish$girth)),sum(is.na(fish$airbladderTotalLength)), 
+             sum(is.na(fish$airBladderWidth)),sum(is.na(fish$deltaRange)), 
+             sum(is.na(fish$deltaMinAng)), sum(is.na(fish$deltaMajAng)),
+             sum(is.na(fish$aspectAngle)),sum(is.na(fish$F90)), 
+             sum(is.na(fish$F90.5)), sum(is.na(fish$F91)))
+
+cate = c(names(missing_count)[1:9], "F91 to F170")
+
+summary_missing = data.frame(cate, missing)
+
+kable(summary_missing, col.names = c("Variables","Number of missing values"), caption = "Summary of missing values")
+
+```
+
+
+```{r}
+fish_mean_TS_mean <- fish %>%
+  group_by(fishNum) %>%
+  summarize( mean = mean(TS_mean, na.rm =T))
+
+fish_mean_depth <- fish %>%
+  group_by(fishNum) %>%
+  summarize(mean_depth = mean(Target_true_depth, na.rm = T))
+
+fish_depth <- inner_join(fish_mean_depth, fish_mean_TS_mean, by = "fishNum")
+
+plot(fish_depth$mean_depth, fish_depth$mean, xlab = "Mean depth of fish", ylab = "Mean target strength")
+title("Scatterplot of mean corrected depth of the target versus \n mean target strength")
+```
+```{r}
+fish_mean_TS_mean <- fish %>%
+  group_by(fishNum) %>%
+  summarize( mean = mean(TS_mean, na.rm =T))
+
+fish_airbladder_length <- fish %>%
+  group_by(fishNum) %>%
+  summarize( size = mean(airbladderTotalLength, na.rm =T))
+  
+fish_ts_airbladder_length <- inner_join(fish_mean_TS_mean, fish_airbladder_length, by = "fishNum")  
+plot(fish_ts_airbladder_length$size,fish_ts_airbladder_length$mean, xlab = "Fishs' airbladder length", ylab = "Mean of mean target strength")
+title("Scatter plot of Fish airbladder length versus \n mean of mean target strength")
+
+fish_airbladder_width <- fish %>%
+  group_by(fishNum) %>%
+  summarize( size = mean(airBladderWidth, na.rm =T))
+fish_ts_airbladder_width <- inner_join(fish_mean_TS_mean, fish_airbladder_width, by = "fishNum")  
+plot(fish_ts_airbladder_width$size,fish_ts_airbladder_width$mean, xlab = "Fishs' airbladder width", ylab = "Mean of mean target strength")
+title("Scatter plot of Fish airbladder width versus \n mean of mean target strength")
+
+```
