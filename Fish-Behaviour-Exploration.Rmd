@@ -13,10 +13,15 @@ library(SmartEDA)
 
 ```{r}
 fishes <- processed_data$fishNum
+
+# don't run this
 for (fish in fishes) {
   plot(processed_data[processed_data$fishNum == fish,]$pingNumber, processed_data[processed_data$fishNum == fish,]$Target_true_depth)
 }
+```
 
+```{r}
+# try this fish and compare
 plot(processed_data[processed_data$fishNum == "LWF014",]$pingNumber, processed_data[processed_data$fishNum == "LWF014",]$Target_true_depth)
 ```
 
