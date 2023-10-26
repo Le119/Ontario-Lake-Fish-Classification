@@ -1,0 +1,118 @@
+---
+title: "Fish ID Project EDA - 1"
+author: "Alice Zhang"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+load("~/Desktop/STA490/Fish Project/processed_AnalysisData.Rdata")
+```
+
+```{r}
+head(processed_data)
+colnames(processed_data)
+```
+
+```{r}
+which(is.na(processed_data), arr.ind=TRUE)
+```
+
+```{r}
+# sapply(processed_data, function(x)any(is.na(x)))
+na.test <-  function (x) {
+  w <- sapply(x, function(x)any(is.na(x)))
+  if (any(w)) {
+    stop(paste("Have NA in columns", paste(which(w), collapse=", ")))
+  }
+}
+
+na.test(processed_data)
+```
+
+```{r}
+col = names(processed_data)[sapply(processed_data, anyNA)]
+
+num_na = rep(NULL, 7)
+for (i in 1:7){
+  name = col[i]
+  num_na[name] = sum(is.na(processed_data[name]))
+}
+
+num_na
+```
+
+
+```{r}
+# "sex"                          
+#  "airBladderWidth"                        "airbladderTotalLength"
+```
+
+
+
+```{r}
+fish = processed_data[!duplicated(processed_data$fishNum), ]
+
+df = data.frame(fish["sex"], 
+                fish["airBladderWidth"], 
+                fish["airbladderTotalLength"])
+
+#Remove rows with NA's
+df_clean <- na.omit(data)  # or df_clean = data[complete.cases(data),]
+# m = df_clean[which(df_clean["sex"] == 1), ]
+# f = df_clean[which(df_clean["sex"] == 2), ]
+# df_clean$sex = as.factor(df_clean$sex)
+```
+
+```{r}
+mlength = df_clean$airbladderTotalLength[which(df_clean["sex"] == 1)]
+flength = df_clean$airbladderTotalLength[which(df_clean["sex"] == 2)]
+mwidth = df_clean$airBladderWidth[which(df_clean["sex"] == 1)]
+fwidth = df_clean$airBladderWidth[which(df_clean["sex"] == 2)]
+# par(mfrow=c(1,2))
+# boxplot(mlength)
+# boxplot(flength)
+par(mfrow=c(1,1))
+boxplot(mlength,flength,
+        main = "Male vs. Female Airbladder Length",
+        ylab = "mm",
+        names = c("MLength", "FLength"),
+        col = c("skyblue", "lightpink"))
+
+par(mfrow=c(1,1))
+boxplot(mwidth, fwidth,
+        main = "Male vs. Female Airbladder Width",
+        ylab = "mm",
+        names = c("MWidth", "FWidth"),
+        col = c("skyblue", "lightpink"))
+```
+
+```{r}
+data2 = data.frame(fish["sex"], 
+                   fish["airBladderWidth"]*fish["airbladderTotalLength"])
+
+df_clean2 <- na.omit(data2)  # or df_clean = data[complete.cases(data),]
+
+msize = df_clean2[,2][which(df_clean2["sex"] == 1)]
+fsize = df_clean2[,2][which(df_clean2["sex"] == 2)]
+par(mfrow=c(1,1))
+boxplot(msize,fsize,
+        main = "Male vs. Female Airbladder Size",
+        ylab = "Length * Width",
+        names = c("MSize", "FSize"),
+        col = c("skyblue", "lightpink"))
+```
+
+```{r}
+data3 = data.frame(fish["girth"], 
+                   fish["airBladderWidth"])
+data4 = data.frame(fish["totalLength"], 
+                   fish["airbladderTotalLength"])
+df_clean3 <- na.omit(data3)
+df_clean4 <- na.omit(data4)
+
+plot(df_clean3)
+plot(df_clean4)
+```
+
