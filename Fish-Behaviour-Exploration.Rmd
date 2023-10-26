@@ -2,12 +2,14 @@
 title: "Fish-Behaviour-Exploration"
 author: "Lewei Er"
 date: "`r Sys.Date()`"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
-install.packages("SmartEDA")
-load("~/Ontario-Lake-Fish-Classification/processed_AnalysisData.Rdata")
+# install.packages("SmartEDA")
+# load("~/Ontario-Lake-Fish-Classification/processed_AnalysisData.Rdata")
 library(SmartEDA)
 ```
 
@@ -20,6 +22,9 @@ for (fish in fishes) {
 plot(processed_data[processed_data$fishNum == "LWF014",]$pingNumber, processed_data[processed_data$fishNum == "LWF014",]$Target_true_depth)
 ```
 
+```{r}
+plot(processed_data[processed_data$fishNum == "LWF014",]$pingNumber, -processed_data[processed_data$fishNum == "LWF014",]$Target_true_depth)
+```
 
 
 
