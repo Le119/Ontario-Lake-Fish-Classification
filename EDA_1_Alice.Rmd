@@ -108,7 +108,7 @@ boxplot(msize,fsize,
 data3 = data.frame(fish["girth"], 
                    fish["airBladderWidth"])
 data4 = data.frame(fish["totalLength"], 
-                   fish["airbladderTotalLength"]) #fff
+                   fish["airbladderTotalLength"]) #fffyyy
 df_clean3 <- na.omit(data3)
 df_clean4 <- na.omit(data4)
 
