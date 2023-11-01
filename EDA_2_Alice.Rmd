@@ -1,0 +1,31 @@
+---
+title: "EDA_2_depthvstime"
+author: "Alice Zhang"
+date: '2023-11-01'
+output: pdf_document
+---
+
+```{r}
+load("~/Ontario-Lake-Fish-Classification/processed_AnalysisData.Rdata")
+```
+
+```{r}
+df = data.frame(id=processed_data[,"fishNum"], 
+                depth=processed_data[,29], 
+                ping=processed_data[,30])
+
+split = split(df, f = df$id) # split individual fish into own dataframe
+```
+
+```{r}
+# Find consecutive difference
+lwf = seq(33, 64)
+
+diff = list() # a list of lists containing consecutive depth differences in each fish
+
+for (i in lwf){
+  diff[[length(diff) + 1]] = diff(split[[i]]$depth)
+}
+```
+
+
