@@ -7,7 +7,7 @@ editor_options:
 ---
 
 ```{r}
-load("~/Desktop/STA490/Fish Project/processed_AnalysisData.Rdata")
+# load("~/Desktop/STA490/Fish Project/processed_AnalysisData.Rdata")
 ```
 
 ```{r}
@@ -114,5 +114,23 @@ df_clean4 <- na.omit(data4)
 
 plot(df_clean3)
 plot(df_clean4)
+```
+
+```{r}
+# Check if airbladder length correlate with total length
+df = data.frame(totallen=processed_data[,"totalLength"], 
+                airlen=processed_data[,"airbladderTotalLength"])
+
+df <- na.omit(df)
+plot(df)
+
+df2 = data.frame(totallen=processed_data[,"totalLength"],
+                 airwid=processed_data[,"airBladderWidth"])
+
+df2 <- na.omit(df2)
+plot(df2)
+
+cor(df)
+cor(df2)
 ```
 
