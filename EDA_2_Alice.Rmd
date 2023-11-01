@@ -41,6 +41,9 @@ for (i in 1:length(gaps)){
 
 ```{r}
 # Plot depth changes for each fish
+
+# Test exemplar plot
+hist(x = diff[[13]], breaks = seq(min(diff[[13]]), max(diff[[13]]), length.out = 100))
 ```
 
 ```{r}
