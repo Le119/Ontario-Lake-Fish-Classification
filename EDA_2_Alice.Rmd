@@ -24,7 +24,7 @@ lwf = seq(33, 64)
 diff = list() # a list of lists containing consecutive depth differences in each fish
 
 for (i in lwf){
-  diff[[length(diff) + 1]] = diff(split[[i]]$depth)
+  diff[[length(diff) + 1]] = abs(diff(split[[i]]$depth))
 }
 ```
 
