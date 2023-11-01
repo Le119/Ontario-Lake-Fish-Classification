@@ -1,0 +1,41 @@
+---
+title: "Fish EDA2"
+output: pdf_document
+date: "2023-11-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(rpart)
+library(partykit)
+library(ggplot2)
+library(leaps)
+library(dplyr)
+```
+
+```{r}
+load("C:/Users/aethe/Desktop/coursebook/Course materials/STA490/processed_AnalysisData.Rdata") 
+fish <- processed_data
+all_fish <- unique(fish$fishNum)
+all_LWF <- all_fish[33:64]
+LWF <- fish %>% filter(fishNum %in% all_LWF) %>% select(fishNum,Target_true_depth, pingNumber)
+gap <- c(c())
+for (i in 1:32){
+  data <- LWF %>% filter(fishNum = all_LWF[i])
+  diff = rep(NA, nrow(data)-1)
+  for (j in 2:nrow(data)){
+    diff[j-1] = abs(data[j,2] - data[j-1,2])
+  }
+  to_remove = gap[i]
+  fiff = diff[-toremove]
+  
+  
+  
+  
+}
+
+
+
+```
