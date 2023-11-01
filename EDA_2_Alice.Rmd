@@ -28,4 +28,26 @@ for (i in lwf){
 }
 ```
 
+```{r}
+# Remove large gaping depth changes
+
+# suppose given a list of vectors of gaping index "gaps" 
+# length(gaps) should be 32, each element is a vector of gaping indices
+for (i in 1:length(gaps)){
+  gap_idx = gaps[i] # indices of gaps
+  diff[[i]] = diff[[i]][-gap_idx] 
+}
+```
+
+```{r}
+# Plot depth changes for each fish
+```
+
+```{r}
+# Extract changes that are greater than xxx-percentile
+```
+
+```{r}
+# Plot all extreme depth changes
+```
 
