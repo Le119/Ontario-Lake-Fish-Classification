@@ -6,6 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
+# put the data in the same folder with the project
 load("~/Ontario-Lake-Fish-Classification/processed_AnalysisData.Rdata")
 ```
 
