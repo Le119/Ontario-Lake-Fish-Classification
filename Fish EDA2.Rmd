@@ -20,9 +20,14 @@ load("C:/Users/aethe/Desktop/coursebook/Course materials/STA490/processed_Analys
 fish <- processed_data
 all_fish <- unique(fish$fishNum)
 all_LWF <- all_fish[33:64]
-LWF <- fish %>% filter(fishNum %in% all_LWF) %>% dplyr::select(fishNum,Target_true_depth, pingNumber)
+LWF <- fish %>% filter(fishNum %in% all_LWF)
+min(LWF$Target_true_depth)
+max(LWF$Target_true_depth)
+LWF <- LWF %>% dplyr::select(fishNum,Target_true_depth, pingNumber)
 gap <- c(c())
 diff = rep(c(NA), 32)
+min(LWF$Target_true_depth)
+max(LWF$Target_true_depth)
 for (i in 1:32){
   data <- LWF %>% filter(fishNum == all_LWF[i])
   
@@ -30,7 +35,7 @@ for (i in 1:32){
     diff[[i]][j-1] = abs(data[j,2] - data[j-1,2])
   }
   #to_remove = gap[i]
-  #diff = diff[[i]][-toremove]
+  #diff = diff[[i]][-to_remove]
 }
 
 for (i in 1:32){
