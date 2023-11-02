@@ -5,6 +5,7 @@ date: "2023-10-15"
 ---
 
 ```{r setup, include=FALSE}
+setwd("~/Ontario-Lake-Fish-CLassification")
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(knitr)
@@ -16,7 +17,7 @@ library(leaps)
 ```
 
 
-
+## Fish data overview
 ```{r}
 load("/Users/luoyihang/Downloads/sta490/processed_AnalysisData.Rdata") 
 fish <- processed_data
@@ -25,21 +26,115 @@ unique(fish$fishNum)
 str(fish)
 ```
 
-
+## Relationship between target strength and depth of fish with 3 frequencies
 ```{r}
-fish_mean_TS_mean <- fish %>%
-  group_by(fishNum) %>%
-  summarize( mean = mean(TS_mean, na.rm =T))
+library(dplyr)
 
-fish_mean_depth <- fish %>%
-  group_by(fishNum) %>%
-  summarize(mean_depth = mean(Target_true_depth, na.rm = T))
+# Reshape the data
+fish_long <- fish %>%
+  tidyr::pivot_longer(cols = c("F70", "F180", "F240"), 
+                      names_to = "frequency", 
+                      values_to = "target_strength")
 
-fish_depth <- inner_join(fish_mean_depth, fish_mean_TS_mean, by = "fishNum")
+# Create a scatter plot for each frequency
+plot_F70 <- ggplot(fish, aes(x = Target_true_depth, y = F70)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "Depth of Fish", 
+       y = "Target Strength", 
+       title = "Relationship between Target Strength and Depth of Fish for F70")
 
-plot(fish_depth$mean_depth, fish_depth$mean, xlab = "Mean depth of fish", ylab = "Mean target strength")
-title("Scatterplot of mean corrected depth of the target versus \n mean target strength")
+plot_F180 <- ggplot(fish, aes(x = Target_true_depth, y = F180)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "Depth of Fish", 
+       y = "Target Strength", 
+       title = "Relationship between Target Strength and Depth of Fish for F180")
+
+plot_F240 <- ggplot(fish, aes(x = Target_true_depth, y = F240)) +
+  geom_point() +
+  theme_bw() +
+  labs(x = "Depth of Fish", 
+       y = "Target Strength", 
+       title = "Relationship between Target Strength and Depth of Fish for F240")
+
+# Print the plots
+print(plot_F70)
+print(plot_F180)
+print(plot_F240)
 ```
+
+## Relationship between target strength and depth of fish with 3 frequencies grouped by species
+```{r}
+# Reshape the data
+fish_long <- fish %>%
+  tidyr::pivot_longer(cols = c("F70", "F180", "F240"), 
+                      names_to = "frequency", 
+                      values_to = "target_strength")
+
+# Create a scatter plot for each frequency
+plot_F70 <- ggplot(fish, aes(x = Target_true_depth, y = F70)) +
+  geom_point() +
+  facet_wrap(~ spCode) +
+  labs(x = "Depth of Fish", 
+       y = "Target Strength", 
+       title = "Relationship between Target Strength and Depth of Fish for F70")
+
+plot_F180 <- ggplot(fish, aes(x = Target_true_depth, y = F180)) +
+  geom_point() +
+  facet_wrap(~ spCode) +
+  labs(x = "Depth of Fish", 
+       y = "Target Strength", 
+       title = "Relationship between Target Strength and Depth of Fish for F180")
+
+plot_F240 <- ggplot(fish, aes(x = Target_true_depth, y = F240)) +
+  geom_point() +
+  facet_wrap(~ spCode) +
+  labs(x = "Depth of Fish", 
+       y = "Target Strength", 
+       title = "Relationship between Target Strength and Depth of Fish for F240")
+
+# Print the plots
+print(plot_F70)
+print(plot_F180)
+print(plot_F240)
+```
+
+## Relationship between target strength and depth of fish with 3 frequencies grouped by species and fish
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+
+# Calculate means
+fish_data_means <- fish %>%
+  group_by(spCode, fishNum) %>%
+  summarise(mean_depth = mean(Target_true_depth, na.rm = TRUE),
+            mean_F70 = mean(F70, na.rm = TRUE),
+            mean_F180 = mean(F180, na.rm = TRUE),
+            mean_F240 = mean(F240, na.rm = TRUE), .groups = "drop")
+
+# Reshape the data
+fish_data_means_long <- fish_data_means %>%
+  tidyr::pivot_longer(cols = c("mean_F70", "mean_F180", "mean_F240"), 
+                      names_to = "frequency", 
+                      values_to = "mean_target_strength")
+
+# Create a scatter plot for each spCode
+ggplot(fish_data_means_long, aes(x = mean_depth, y = mean_target_strength)) +
+  geom_point() +
+  facet_grid(spCode ~ frequency, scales = "free") +
+  theme_bw() +
+  labs(x = "Mean Depth of Fish", 
+       y = "Mean Target Strength", 
+       title = "Relationship between Mean Target Strength and Mean Depth of Fish",
+       subtitle = "Grouped by spCode and Frequency")
+spearman_correlation <- cor(fish_data_means_long$mean_depth, fish_data_means_long$mean_target_strength, method = "spearman")
+spearman_correlation
+```
+
+
+## Relationship between fish airbladder width and mean of mean target strength
 ```{r}
 fish_mean_TS_mean <- fish %>%
   group_by(fishNum) %>%
@@ -60,4 +155,108 @@ fish_ts_airbladder_width <- inner_join(fish_mean_TS_mean, fish_airbladder_width,
 plot(fish_ts_airbladder_width$size,fish_ts_airbladder_width$mean, xlab = "Fishs' airbladder width", ylab = "Mean of mean target strength")
 title("Scatter plot of Fish airbladder width versus \n mean of mean target strength")
 
+```
+
+## Relationship between mean of Fish angle and mean of target true depth
+```{r}
+fish_mean_values <- fish %>%
+  group_by(fishNum) %>%
+  summarize(
+    mean_depth = mean(Target_true_depth, na.rm = TRUE),
+    mean_angle = mean(aspectAngle, na.rm = TRUE)
+  )
+# Plot the relationship between mean_angle and mean_depth
+plot(fish_mean_values$mean_angle, fish_mean_values$mean_depth, xlab = "fish mean angle", ylab = "fish mean depth")
+title("Scatter plot of mean of Fish angle(major) \n versus mean of target true depth")
+```
+## Relationship between aspect angle and mean of target true depth
+```{r}
+# Load the ggplot2 package
+library(ggplot2)
+
+# Get the unique fishNum values
+fish_nums <- unique(fish$fishNum)
+
+# Loop over each fishNum
+for (i in seq_along(fish_nums)) {
+  # Filter data for the current fishNum
+  fish_subset <- fish[fish$fishNum == fish_nums[i], ]
+  
+  # Create a scatter plot of Target_true_depth vs Angle_major_axis for the current fishNum
+  p <- ggplot(fish_subset, aes(x = aspectAngle, y = Target_true_depth)) +
+    geom_point() +
+    labs(x = "Aspect Angle", y = "Target True Depth", 
+         title = paste("Relationship between depth and angle for fish number", fish_nums[i]))
+  
+  # Save the plot to a file
+  ggsave(paste0("plot_", fish_nums[i], ".png"), plot = p)
+}
+```
+
+
+```{r}
+fishes <- unique(fish$fishNum)
+print(fishes)
+# don't run this
+for (num in fishes) {
+  subset_fish <- fish[fish$fishNum == num,]
+  
+  # Create the plot
+  plot(subset_fish$pingNumber, -subset_fish$Target_true_depth, main = num)
+}
+```
+```{r}
+missing_intervals <- list()
+
+for (num in fishes) {
+  subset_fish <- fish[fish$fishNum == num,]
+  
+  sorted_pings <- sort(subset_fish$pingNumber)
+  
+  diff_pings <- diff(sorted_pings)
+  
+  # Use findInterval to find the gaps
+  gap <- findInterval(diff_pings, 1) != 1
+  
+  missing_intervals[[num]] <- lapply(which(gap), function(i) list(start = sorted_pings[i]+1, end = sorted_pings[i+1]-1))
+}
+
+```
+
+
+```{r}
+missing_indices <- list()
+
+for(num in unique(fish$fishNum)) {
+  subset_fish <- fish[fish$fishNum == num,]
+  
+  sorted_pings <- sort(subset_fish$pingNumber)
+  
+  diff_pings <- diff(sorted_pings)
+
+  indices <- which(diff_pings > 1000)
+  
+  if(length(indices) > 0) {
+    missing_indices[[as.character(num)]] <- indices
+  }
+}
+missing_indices
+
+```
+
+```{r}
+fish1 <- fish
+
+for(num in unique(fish1$fishNum)) {
+  indices_to_remove <- unlist(missing_indices[[num]])
+  
+  if(!is.null(indices_to_remove)) {
+    fish1 <- subset(fish1, !(fishNum == num & pingNumber %in% indices_to_remove))
+  }
+}
+library(dbplyr)
+ping<- fish1%>%
+  select(pingNumber, fishNum)%>%
+  group_by(fishNum)
+ping
 ```
