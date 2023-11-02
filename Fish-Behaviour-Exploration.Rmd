@@ -23,18 +23,19 @@ for (fish in fishes) {
 # look at one specific fish
 fishCode <- "LT001"
 fish_of_interest <- (data.frame(processed_data[processed_data$fishNum == fishCode, ]))
-fish_of_interest <- fish_of_interest[order(fish_of_interest$pingNumber, decreasing = F)]
-# set n threshold
-indicator_n <- 5
-lst_of_ping <- c(0)
+indicator_n <- 1000
+lst_of_ping <- c()
 
 for (i in 1:(nrow(fish_of_interest) - 1)){
-  if (fish_of_interest[i + 1,]$pingNumber - fish_of_interest[i,]$pingNumber >= indicator_n){
+  diff_t = fish_of_interest[i + 1,]$pingNumber - fish_of_interest[i,]$pingNumber
+  if ( diff_t >= indicator_n){
     lst_of_ping <- c(lst_of_ping, i)
   }
 }
 lst_of_ping
 ```
+
+
 
 
 
