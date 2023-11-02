@@ -4,26 +4,80 @@ output: pdf_document
 date: "2023-10-19"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r}
+processed_data
+```
+```{r}
+lwf_fish_data <- processed_data[grepl("LWF", processed_data$fishNum), ]
+lwf_fish_data
+```
+```{r}
+max_depth <- max(lwf_fish_data$Target_true_depth)
+min_depth <- min(lwf_fish_data$Target_true_depth)
+print(max_depth)
+print(min_depth)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+```{r}
+dat <- subset(processed_data, fishNum == "LWF001")
+plot(dat$pingNumber, dat$Target_true_depth, type = "p", xlab = "Ping Number", ylab = "Depth", ylim = c(9.018549, 18.9214))
+dat$pingNumber
+```
+Index: 140, 205, 341
 
-```{r cars}
-summary(cars)
+```{r}
+dat <- subset(processed_data, fishNum == "LT001")
+plot(dat$pingNumber, dat$Target_true_depth, type = "p", xlab = "Ping Number", ylab = "Depth", ylim = c(9.018549, 18.9214))
+dat$pingNumber
+```
+Index: 14, 70, 113
+```{r}
+dat <- subset(processed_data, fishNum == "LWF003")
+plot(dat$pingNumber, dat$Target_true_depth, type = "p", xlab = "Ping Number", ylab = "Depth", ylim = c(9.018549, 18.9214))
+dat$pingNumber
+```
+Index: 117
+
+
+```{r}
+dat <- subset(processed_data, fishNum == "LWF004")
+plot(dat$pingNumber, dat$Target_true_depth, type = "p", xlab = "Ping Number", ylab = "Depth", ylim = c(9.018549, 18.9214))
+dat$pingNumber
+```
+Index: 24
+
+```{r}
+dat <- subset(processed_data, fishNum == "LWF005")
+plot(dat$pingNumber, dat$Target_true_depth, type = "p", xlab = "Ping Number", ylab = "Depth", ylim = c(9.018549, 18.9214))
+dat$pingNumber
+```
+Index: 14, 33
+
+```{r}
+dat <- subset(processed_data, fishNum == "LWF006")
+plot(dat$pingNumber, dat$Target_true_depth, type = "p", xlab = "Ping Number", ylab = "Depth", ylim = c(9.018549, 18.9214))
+dat$pingNumber
+```
+Index: 16, 102
+```{r}
+dat <- subset(processed_data, fishNum == "LWF007")
+plot(dat$pingNumber, dat$Target_true_depth, type = "p", xlab = "Ping Number", ylab = "Depth", ylim = c(9.018549, 18.9214))
+dat$pingNumber
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+Index: 9, 303
+```{r}
+dat <- subset(processed_data, fishNum == "LWF009")
+plot(dat$pingNumber, dat$Target_true_depth, type = "p", xlab = "Ping Number", ylab = "Depth", ylim = c(9.018549, 18.9214))
+dat$pingNumber
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Index: 18
+```{r}
+dat <- subset(processed_data, fishNum == "LWF010")
+plot(dat$pingNumber, dat$Target_true_depth, type = "p", xlab = "Ping Number", ylab = "Depth", ylim = c(9.018549, 18.9214))
+dat$pingNumber
+```
+Index: 17, 35, 181, 315, 408
