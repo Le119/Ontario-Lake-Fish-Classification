@@ -18,3 +18,24 @@ for (fish in fishes) {
   plot(processed_data[processed_data$fishNum == fish,]$pingNumber, -processed_data[processed_data$fishNum == fish,]$Target_true_depth, main = fish)
 }
 ```
+
+```{r}
+fishCode <- "LT001"
+fish_of_interest <- (data.frame(processed_data[processed_data$fishNum == fishCode, ]))
+fish_of_interest <- fish_of_interest[order(fish_of_interest$pingNumber, decreasing = F)]
+indicator_n <- 5
+lst_of_ping <- c(0)
+
+fish_of_interest[1 + 1,]$pingNumber - fish_of_interest[1,]$pingNumber > 0
+
+for (i in 1:(nrow(fish_of_interest) - 1)){
+  if (fish_of_interest[i + 1,]$pingNumber - fish_of_interest[i,]$pingNumber >= indicator_n){
+    lst_of_ping <- c(lst_of_ping, i)
+  }
+}
+lst_of_ping
+```
+
+
+
+
