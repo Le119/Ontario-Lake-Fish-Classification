@@ -11,7 +11,7 @@ load("~/Ontario-Lake-Fish-Classification/processed_AnalysisData.Rdata")
 ```
 
 ```{r}
-fishes <- processed_data$fishNum
+fishes <- unique(processed_data$fishNum)
 
 # don't run this
 for (fish in fishes) {
@@ -30,14 +30,19 @@ specific_fish_ping_lag <- function(fishCode, indicator_n = 1000){
       lst_of_ping <- c(lst_of_ping, i)
     }
   }
-  lst_of_ping
+  cat("Fish", fishCode, "pings:", lst_of_ping, "\n")
 }
 
+# sample usage
 specific_fish_ping_lag("LT001", 100)
 ```
 
-
-
+```{r}
+fishes <- unique(processed_data$fishNum)
+for (fish in fishes) {
+  specific_fish_ping_lag(fish)
+}
+```
 
 
 
