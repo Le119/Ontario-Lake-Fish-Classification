@@ -11,6 +11,7 @@ load("~/Ontario-Lake-Fish-Classification/processed_AnalysisData.Rdata")
 ```
 
 ```{r}
+# make plots for depth over time
 fishes <- unique(processed_data$fishNum)
 
 for (fish in fishes) {
@@ -19,6 +20,7 @@ for (fish in fishes) {
 ```
 
 ```{r}
+# make plots for depth over time with common depth scale
 fishes <- unique(processed_data$fishNum)
 
 for (fish in fishes) {
@@ -45,6 +47,7 @@ specific_fish_ping_lag("LT001", 100)
 ```
 
 ```{r}
+# generate starting ping numbers of gaps
 fishes <- unique(processed_data$fishNum)
 for (fish in fishes) {
   specific_fish_ping_lag(fish)
