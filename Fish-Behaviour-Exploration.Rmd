@@ -24,13 +24,13 @@ for (fish in fishes) {
 fishes <- unique(processed_data$fishNum)
 
 for (fish in fishes) {
-  plot(processed_data[processed_data$fishNum == fish,]$pingNumber, -processed_data[processed_data$fishNum == fish,]$Target_true_depth, main = fish, ylim = c(-10, -20))
+  plot(processed_data[processed_data$fishNum == fish,]$pingNumber, -processed_data[processed_data$fishNum == fish,]$Target_true_depth, main = fish, ylim = c(-19, -9))
 }
 ```
 
 ```{r}
 # function to look at one specific fish
-specific_fish_ping_lag <- function(fishCode, indicator_n = 1000){
+specific_fish_ping_lag <- function(fishCode, indicator_n = 200){
   fish_of_interest <- (data.frame(processed_data[processed_data$fishNum == fishCode, ]))
   lst_of_ping <- c()
   for (i in 1:(nrow(fish_of_interest) - 1)){
@@ -53,6 +53,11 @@ for (fish in fishes) {
   specific_fish_ping_lag(fish)
 }
 ```
+
+
+
+
+
 
 
 
