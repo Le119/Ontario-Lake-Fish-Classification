@@ -1,0 +1,83 @@
+## Creating a clean dataset ##
+## 19th October
+
+# libraries
+library(dplyr)
+library(tidyr)
+
+## Read in the data
+load("~/Library/CloudStorage/OneDrive-UniversityofToronto/Documents/PostDoc/EATFAT/processed_AnalysisData.Rdata")
+
+processed_data%>%group_by(spCode,fishNum)%>%count()
+
+# Remove individuals with missing transducers
+processed_data<-processed_data%>%filter(is.na(F100)==F)
+
+# also remove individual LWF23018 (only two pings)
+processed_data<-processed_data%>%filter(fishNum!="LWF23018")
+
+# remove the individual with -9x10^38 TS
+processed_data<-processed_data[-36830,]
+
+## Lake Trout Filtering
+## LT 009, 010, 012, 014 (although looks more like a dead fish), 016, 017 (6/10 condition), 021, 23007, 23009, 23013, 23012, 23011, 23010, 23005, 23004, 23003, 23002 are all good and were behaving normally.
+
+# LT019 and LT23008 were dead the whole time. Remove. 
+processed_data<-processed_data%>%filter(fishNum!="LT019")
+processed_data<-processed_data%>%filter(fishNum!="LT23008")
+
+# LT015, 018, and 23018 were bad on the way down and then good on retrieval - will filter the first parts of the data
+
+# LT015 was at a very shallow depth and on quadrant for the majority of pinging, then seemed to move to the correct depth. Keep only those pings
+processed_data <- processed_data[!(processed_data$fishNum == "LT015" & processed_data$Target_true_depth > 15.5 ) ,]
+
+# LT018 was rough on attachment too, also has two rythmic changes in depth - going to remove the times the fish was above 15.5m as this will get rid of the time that fish was being dragged potentially and the first part of the timeseries where the fish was rough
+processed_data <- processed_data[!(processed_data$fishNum == "LT018" & processed_data$Target_true_depth > 15.5 ) ,]
+
+# LT23018 was rough on attachment, barely alive, but "suprisingly okay" coming back - no clear indication of when it got "okay" in the data so remove whole fish
+processed_data<-processed_data%>%filter(fishNum!="LT23018")
+
+
+# LT013, and LT23001 went down okay but died sometime down there. 
+
+# LT013 was almost dead on release as well as dead on retrival - remove all. 
+processed_data<-processed_data%>%filter(fishNum!="LT013")
+
+# LT23001 looks like there are barely any salvagable pings - remove all
+processed_data<-processed_data%>%filter(fishNum!="LT23001")
+
+
+## Cleaned data: 
+processed_data%>%filter(spCode==81)%>%group_by(fishNum)%>%count()
+# 21 fish, 22,792 pings
+
+## Looking at cleaned LT data
+print(processed_data%>%filter(spCode==81)%>%group_by(fishNum)%>%summarise(TL=mean(totalLength)),n=21)
+
+
+## Lake Whitefish Filtering
+## LWF 004, 005, 006, 007,010,012, 013, 014, 015, 23001, 23002, 23003, 23005, 23007, 23009, 23010, 23011, 23013, 23015, 23016, 23017 are all good and behaving normally.
+
+# 23004 and 23014 both pretty much dead the whole time
+processed_data<-processed_data%>%filter(fishNum!="LWF23004")
+processed_data<-processed_data%>%filter(fishNum!="LWF23014")
+
+
+# 23006 and 23008 both "swam" upside down for the majority of the time
+processed_data<-processed_data%>%filter(fishNum!="LWF23006")
+processed_data<-processed_data%>%filter(fishNum!="LWF23008")
+
+
+# LWF011, sounder on at 8:11, remove pings between 8:09 and 8:13.
+
+LWF011<-processed_data%>%
+        filter(fishNum=="LWF011")%>%
+        mutate(Ping_time=strptime(Ping_time,format = "%H:%M:%S")-(60*60*4), hour=hour(Ping_time), minute=minute(Ping_time))%>%
+  filter(hour==19 | hour==20 & minute <= 9 | hour==20 & minute >= 13)%>%select(c(-hour,-minute))
+
+processed_data<-processed_data%>%filter(fishNum!="LWF011")
+
+processed_data<-rbind(processed_data,LWF011)
+
+
+# LWF23012 was held at a different depth for the full time, LWF009 was in poor condition on retrieval but activity score 3: keep for now but keep in mind.
