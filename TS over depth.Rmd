@@ -1,0 +1,83 @@
+---
+title: "TS over depth"
+author: "Yu Zhang"
+date: "2023/11/1"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# 70, 120, 240 Hz for each transducer to find relationship
+library(ggplot2)
+
+#depth = processed_data$Target_true_depth
+#TS = processed_data$F70
+
+```
+
+
+```{r}
+selected_rows <- processed_data[grepl("^LWF", processed_data$fishNum), ]
+
+# data_fish3 = processed_data[processed_data$fishNum == "LT003",]
+
+spearman_correlation <- cor(selected_rows$Target_true_depth, selected_rows$F70, method = "spearman")
+
+ggplot(data = selected_rows, aes(x = Target_true_depth, y = F70)) +
+  geom_point() +
+  labs(x = "True Depth", y = "Target Strength") +
+  ggtitle("Scatter Plot of Target Strength against Depth (LWF, F70)")
+```
+
+
+
+```{r}
+ggplot(data = selected_rows, aes(x = Target_true_depth, y = F180)) +
+  geom_point() +
+  labs(x = "True Depth", y = "Target Strength") +
+  ggtitle("Scatter Plot of Target Strength against Depth (LWF, F180)")
+
+
+ggplot(data = selected_rows, aes(x = Target_true_depth, y = F240)) +
+  geom_point() +
+  labs(x = "True Depth", y = "Target Strength") +
+  ggtitle("Scatter Plot of Target Strength against Depth (LWF, F240)")
+```
+```{r}
+cor(selected_rows$Target_true_depth, selected_rows$F180, method = "spearman")
+cor(selected_rows$Target_true_depth, selected_rows$F240, method = "spearman")
+```
+
+```{r}
+selected_rows_LT <- processed_data[grepl("^LT", processed_data$fishNum), ]
+
+spearman_correlation <- cor(selected_rows_LT$Target_true_depth, selected_rows_LT$F70, method = "spearman")
+
+ggplot(data = selected_rows_LT, aes(x = Target_true_depth, y = F70)) +
+  geom_point() +
+  labs(x = "True Depth", y = "Target Strength") +
+  ggtitle("Scatter Plot of Target Strength against Depth (LT, F70)")
+
+```
+
+```{r}
+cor(selected_rows_LT$Target_true_depth, selected_rows_LT$F180, method = "spearman")
+
+ggplot(data = selected_rows_LT, aes(x = Target_true_depth, y = F180)) +
+  geom_point() +
+  labs(x = "True Depth", y = "Target Strength") +
+  ggtitle("Scatter Plot of Target Strength against Depth (LT, F180)")
+```
+```{r}
+cor(selected_rows_LT$Target_true_depth, selected_rows_LT$F240, method = "spearman")
+
+ggplot(data = selected_rows_LT, aes(x = Target_true_depth, y = F240)) +
+  geom_point() +
+  labs(x = "True Depth", y = "Target Strength") +
+  ggtitle("Scatter Plot of Target Strength against Depth (LT, F240)")
+```
+
+
