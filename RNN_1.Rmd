@@ -1,0 +1,248 @@
+---
+title: "RNN_1"
+author: "Alice Zhang"
+output: html_document
+---
+
+```{r}
+# Install necessary R packages
+# install.packages(c("tensorflow", "keras", "magrittr", "ggplot2"))
+
+# Load the TensorFlow R package
+library(tensorflow)
+library(keras)
+library(magrittr)
+
+# Generate some random data for demonstration
+set.seed(42)
+time <- seq(0, 100, 0.1)
+sin_wave <- sin(time) + 0.1 * rnorm(length(time))
+
+# Create sequences for training the RNN
+seq_length <- 20
+X <- matrix(0, nrow = length(time) - seq_length, ncol = seq_length)
+
+for (i in 1:(length(time) - seq_length)) {
+  X[i, ] <- sin_wave[i:(i + seq_length - 1)]
+}
+
+y <- sin_wave[(seq_length + 1):length(time)]
+
+# Reshape the data for input to the RNN
+X <- array(X, dim = c(dim(X), 1))
+
+# Build the RNN model
+model <- keras_model_sequential() %>%
+  layer_simple_rnn(units = 50, activation = 'relu', input_shape = c(seq_length, 1)) %>%
+  layer_dense(units = 1)
+
+compile(model, optimizer = 'adam', loss = 'mse')
+
+# Train the model
+# Train the model
+history <- fit(model, X, y, epochs = 10, batch_size = 32)
+
+# Make predictions
+test_seq <- sin_wave[1:seq_length]
+test_seq <- array(test_seq, dim = c(1, seq_length, 1))
+predicted_values <- numeric(length(time) - seq_length)
+
+for (i in 1:(length(time) - seq_length)) {
+  predicted_value <- predict(model, test_seq)
+  predicted_values[i] <- predicted_value
+  test_seq <- array(c(test_seq[1, -1, ], predicted_value), dim = c(1, seq_length, 1))
+}
+
+# Plot the results
+library(ggplot2)
+
+df <- data.frame(
+  time = time,
+  true_values = sin_wave,
+  predicted_values = c(rep(NA, seq_length), predicted_values)
+)
+
+ggplot(df, aes(x = time)) +
+  geom_line(aes(y = true_values, color = "True Values"), size = 1) +
+  geom_line(aes(y = predicted_values, color = "Predicted Values"), size = 1, linetype = "dashed") +
+  labs(title = "True vs. Predicted Values") +
+  theme_minimal()
+
+```
+
+
+```{r}
+# libraries
+library(dplyr)
+library(tidyr)
+
+## Read in the data
+# Load the RData file
+load("~/Downloads/processed_AnalysisData.Rdata")
+
+processed_data%>%group_by(spCode,fishNum)%>%count()
+
+# Remove individuals with missing transducers
+processed_data<-processed_data%>%filter(is.na(F100)==F)
+
+# also remove individual LWF23018 (only two pings)
+processed_data<-processed_data%>%filter(fishNum!="LWF23018")
+
+# remove the individual with -9x10^38 TS
+processed_data<-processed_data[-36830,]
+
+## Lake Trout Filtering
+## LT 009, 010, 012, 014 (although looks more like a dead fish), 016, 017 (6/10 condition), 021, 23007, 23009, 23013, 23012, 23011, 23010, 23005, 23004, 23003, 23002 are all good and were behaving normally.
+
+# LT019 and LT23008 were dead the whole time. Remove. 
+processed_data<-processed_data%>%filter(fishNum!="LT019")
+processed_data<-processed_data%>%filter(fishNum!="LT23008")
+
+# LT015, 018, and 23018 were bad on the way down and then good on retrieval - will filter the first parts of the data
+
+# LT015 was at a very shallow depth and on quadrant for the majority of pinging, then seemed to move to the correct depth. Keep only those pings
+processed_data <- processed_data[!(processed_data$fishNum == "LT015" & processed_data$Target_true_depth > 15.5 ) ,]
+
+# LT018 was rough on attachment too, also has two rythmic changes in depth - going to remove the times the fish was above 15.5m as this will get rid of the time that fish was being dragged potentially and the first part of the timeseries where the fish was rough
+processed_data <- processed_data[!(processed_data$fishNum == "LT018" & processed_data$Target_true_depth > 15.5 ) ,]
+
+# LT23018 was rough on attachment, barely alive, but "suprisingly okay" coming back - no clear indication of when it got "okay" in the data so remove whole fish
+processed_data<-processed_data%>%filter(fishNum!="LT23018")
+
+
+# LT013, and LT23001 went down okay but died sometime down there. 
+
+# LT013 was almost dead on release as well as dead on retrival - remove all. 
+processed_data<-processed_data%>%filter(fishNum!="LT013")
+
+# LT23001 looks like there are barely any salvagable pings - remove all
+processed_data<-processed_data%>%filter(fishNum!="LT23001")
+
+
+## Cleaned data: 
+processed_data%>%filter(spCode==81)%>%group_by(fishNum)%>%count()
+# 21 fish, 22,792 pings
+
+## Looking at cleaned LT data
+print(processed_data%>%filter(spCode==81)%>%group_by(fishNum)%>%summarise(TL=mean(totalLength)),n=21)
+
+
+## Lake Whitefish Filtering
+## LWF 004, 005, 006, 007,010,012, 013, 014, 015, 23001, 23002, 23003, 23005, 23007, 23009, 23010, 23011, 23013, 23015, 23016, 23017 are all good and behaving normally.
+
+# 23004 and 23014 both pretty much dead the whole time
+processed_data<-processed_data%>%filter(fishNum!="LWF23004")
+processed_data<-processed_data%>%filter(fishNum!="LWF23014")
+
+
+# 23006 and 23008 both "swam" upside down for the majority of the time
+processed_data<-processed_data%>%filter(fishNum!="LWF23006")
+processed_data<-processed_data%>%filter(fishNum!="LWF23008")
+
+
+# LWF011, sounder on at 8:11, remove pings between 8:09 and 8:13.
+library(lubridate)
+LWF011<-processed_data%>%
+        filter(fishNum=="LWF011")%>%
+        mutate(Ping_time=strptime(Ping_time,format = "%H:%M:%S")-(60*60*4),
+               hour=hour(Ping_time), minute=minute(Ping_time))%>%
+  filter(hour==19 | hour==20 & minute <= 9 | hour==20 & minute >= 13)%>%
+  select(c(-hour,-minute))
+
+processed_data<-processed_data%>%filter(fishNum!="LWF011")
+
+processed_data<-rbind(processed_data,LWF011)
+
+
+# LWF23012 was held at a different depth for the full time, LWF009 was in poor condition on retrieval but activity score 3: keep for now but keep in mind.
+```
+
+```{r}
+# PROCESS AND Transform DATA
+F45index <- which(names(processed_data) == "F45")
+f1=seq(from=45,to=89.5,by=0.5) #first group of frequencies
+f2=seq(from=90,to=170,by=0.5) #second group of frequencies
+f3=seq(from=173,to=260,by=0.5) #third group of frequencies
+listf1=seq(from=F45index,to=(F45index-1)+length(f1),by=1) #columns identifying the first group of frequencies
+listf2=seq(from=F45index+length(f1),to=(F45index-1)+length(f1)+length(f2),by=1) #columns identifying the second group of frequencies
+listf3=seq(from=F45index+length(f1)+length(f2),to=(F45index-1)+length(f1)+length(f2)+length(f3),by=1) #columns identifying the third group of frequencies
+f1mar1=45
+f1mar2=89.5
+f2mar1=91
+f2mar2=170
+f3mar1=173
+f3mar2=260
+
+# filter
+f1inc=f1>=(f1mar1)&f1<=(f1mar2) #list of frequencies to keep in the first group
+f2inc=f2>=(f2mar1)&f2<=(f2mar2) #list of frequencies to keep in the second group
+f3inc=f3>=(f3mar1)&f3<=(f3mar2) #list of frequencies to keep in the third group
+freqs=c(f1[f1inc],f2[f2inc],f3[f3inc]) #kept frequencies
+
+
+X1=exp(processed_data[,listf1[f1inc]]/10) #ftransform to acoustic backscatter
+X2=exp(processed_data[,listf2[f2inc]]/10)
+X3=exp(processed_data[,listf3[f3inc]]/10)
+
+# create unique region
+processed_data$unique.region<-interaction(processed_data$fishNum,processed_data$Region_name)
+
+y <- as.factor(processed_data$spCode)
+region<-processed_data$unique.region
+fishNum<-processed_data$fishNum
+
+
+# make test and train as a dataset
+data = cbind.data.frame(X1,X2,X3,y,fishNum,region)
+
+
+set.seed(123)
+split<-group_initial_split(data,group=fishNum,strata = y)
+train<-training(split)
+test<-testing(split)
+# 
+test%>%group_by(y)%>%count()
+train%>%group_by(y)%>%count()
+
+# make the design balanced across both species
+test<-test%>%filter(y=="81"&row_number()<3222|y=="91")
+train<-train%>%filter(y=="81"&row_number()<9537|y=="91")
+# 
+# set.seed(123)
+# cv_folds <- train%>%group_vfold_cv(v = 5,group=fishNum,strata=y)
+
+```
+
+```{r}
+# Function to convert time
+convert_to_datetime <- function(time_str) {
+  tt=as.POSIXlt(time_str, format = "%H:%M:%OS")
+  return(strftime(tt,'%Y-%m-%d %H:%M:%OS4'))
+}
+
+library(hms)
+
+consec_timediff = c()
+i1=1
+new_ping_ts = data.frame(matrix(ncol = length(X1[1,]), nrow = 0))
+colnames(new_ping_ts) = colnames(X1)
+# for (i in 2:length(processed_data$spCode)){
+for (i in 2:12){ 
+  first = convert_to_datetime(processed_data$Ping_time[i - 1])
+  second = convert_to_datetime(processed_data$Ping_time[i])
+  consec_timediff=c(consec_timediff, as.numeric(difftime(first, second)))
+  
+  if (abs(sum(consec_timediff)) >= 2){
+    # for (f in 1:length(listf1)){
+    for (f in 1:5){
+      a = as.list(processed_data[i1:i, listf1[f]])[[1]]
+      new_ping_ts[length(new_ping_ts[f,]) + 1,f] = mean(a)
+    }
+      
+    i1=i
+    consec_timediff = c()
+  }
+}
+
+```
+
