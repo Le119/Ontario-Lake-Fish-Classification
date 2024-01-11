@@ -15,6 +15,13 @@ library(MASS)
 library(leaps)
 library(dplyr)
 library(tidyr)
+
+library(grid)
+library(gridExtra)
+library(magick)
+
+library(png)
+library("EBImage")
 ```
 
 ```{r}
@@ -106,6 +113,38 @@ fish <- subset(fish, select=-c(F90,F90.5))
 fish <- fish[,c(3,52:475)]
 sum(is.na(fish))
 fish$spCode <- ifelse(fish$spCode == 81, 1, 0)
+
+#X-labels
+frequency <- seq(45, 260, by = 0.5)
+elements_to_remove <- seq(170.5, 172.5, by = 0.5)
+frequency <- frequency[!frequency %in% elements_to_remove]
+elements_to_remove <- c(90,90.5)
+frequency <- frequency[!frequency %in% elements_to_remove]
+
+#Create train and test data set
+set.seed(490)
+test_index_1 <-sample(which(fish$spCode == 1 ) , 1600 )
+test_index_0 <-sample(which(fish$spCode == 0 ) , 1600 )
+test_index <- c(test_index_0,test_index_1)
+test_data <- fish[test_index,]
+train_data <- fish[-test_index,]
+plot_data <- train_data[,-1]
+
+#Find scale for y-axis
+max <- plot_data %>% summarise_if(is.numeric, list(~ max(., na.rm=TRUE)))
+max(max)
+
+min <- plot_data %>% summarise_if(is.numeric, list(~ min(., na.rm=TRUE)))
+min(min)
+
+```
+
+```{r, echo=FALSE, fig.height=3, fig.width=7, warning=FALSE}
+ggplot() +
+    geom_line(aes(x = frequency, y = as.numeric(row_data))) +
+  labs(title = "Spectrogram of target strength at each frequency",
+       x = "Frequency", y = "Target Strength")
+```
 
 
 ```
