@@ -1,8 +1,8 @@
 ---
-title: "Fish-Behaviour-Exploration"
+title: "Fish-Exploration-RegionName"
 author: "Lewei Er"
-date: "`r Sys.Date()`"
-output: pdf_document
+date: "2023-11-30"
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -89,49 +89,98 @@ processed_data<-rbind(processed_data,LWF011)
 
 ```{r}
 # make plots for depth over time
-fishes <- unique(processed_data$fishNum)
+fishes <- unique(processed_data$Region_name)
 
 for (fish in fishes) {
-  plot(processed_data[processed_data$fishNum == fish,]$pingNumber, -processed_data[processed_data$fishNum == fish,]$Target_true_depth, main = fish)
+  plot(processed_data[processed_data$Region_name == fish,]$pingNumber, -processed_data[processed_data$Region_name == fish,]$Target_true_depth, main = fish)
 }
 ```
 
 ```{r}
-# make plots for depth over time with common depth scale
-fishes <- unique(processed_data$fishNum)
-
-for (fish in fishes) {
-  plot(processed_data[processed_data$fishNum == fish,]$pingNumber, -processed_data[processed_data$fishNum == fish,]$Target_true_depth, main = fish, ylim = c(-19, -9))
-}
+# keeping only 90, 62, 101, 84, 85
+fish_data <- processed_data[processed_data$Region_name == "Region_90" | processed_data$Region_name == "Region_62" | processed_data$Region_name == "Region_101" | processed_data$Region_name == "Region_84" | processed_data$Region_name == "Region_85",]
 ```
 
 ```{r}
-# function to look at one specific fish
-specific_fish_ping_lag <- function(fishCode, indicator_n = 200){
-  fish_of_interest <- (data.frame(processed_data[processed_data$fishNum == fishCode, ]))
-  lst_of_ping <- c()
-  for (i in 1:(nrow(fish_of_interest) - 1)){
-    diff_t = fish_of_interest[i + 1,]$pingNumber - fish_of_interest[i,]$pingNumber
-    if ( diff_t >= indicator_n){
-      lst_of_ping <- c(lst_of_ping, i)
-    }
+library(reticulate)
+Sys.setenv(RETICULATE_PYTHON = "/Applications/Python 3.9")
+library(keras)
+#install_keras()
+
+
+# fomulate multivariate time series data and species codes
+time_series_data <- fish_data[, grep("F45|F260", colnames(fish_data), value = TRUE)]
+species <- fish_data$spCode
+
+# data normalization
+time_series_data <- scale(time_series_data)
+
+# convert species to categorical
+species <- to_categorical(as.integer(species))
+
+# Split data into training and testing sets
+set.seed(123)
+indices <- sample(1:nrow(time_series_data), size = 0.8 * nrow(time_series_data))
+train_data <- time_series_data[indices, ]
+test_data <- time_series_data[-indices, ]
+train_labels <- species[indices, ]
+test_labels <- species[-indices, ]
+
+# Residual Block
+residual_block <- function(input, filters, kernel_size, strides, use_activation = TRUE) {
+  x <- input
+  x <- layer_conv_1d(filters = filters, kernel_size = kernel_size, strides = strides, padding = "same")(x)
+  x <- layer_batch_normalization()(x)
+  if (use_activation) {
+    x <- layer_activation("relu")(x)
   }
-  cat("Fish", fishCode, "pings:", lst_of_ping, "\n")
+  x <- layer_conv_1d(filters = filters, kernel_size = kernel_size, strides = strides, padding = "same")(x)
+  x <- layer_batch_normalization()(x)
+
+  # Add the input (shortcut connection)
+  x <- layer_add(list(x, input))
+  if (use_activation) {
+    x <- layer_activation("relu")(x)
+  }
+  return(x)
 }
+
+# ResNet Model
+input_shape <- dim(train_data)[2]
+output_classes <- dim(species)[2]
+
+input <- layer_input(shape = c(input_shape, 1))
+x <- layer_conv_1d(filters = 64, kernel_size = 7, strides = 1, padding = "same")(input)
+x <- layer_batch_normalization()(x)
+x <- layer_activation("relu")(x)
+
+# add residual blocks
+x <- residual_block(x, filters = 64, kernel_size = 3, strides = 1)
+x <- residual_block(x, filters = 64, kernel_size = 3, strides = 1)
+
+# output part of the model
+x <- layer_global_average_pooling_1d()(x)
+output <- layer_dense(units = output_classes, activation = "softmax")(x)
+
+model <- keras_model(inputs = input, outputs = output)
+
+# compile the model
+model %>% compile(
+  loss = "categorical_crossentropy",
+  optimizer = optimizer_adam(),
+  metrics = c("accuracy")
+)
+
+# train the model
+history <- model %>% fit(
+  train_data, train_labels,
+  epochs = 20,
+  batch_size = 32,
+  validation_split = 0.2
+)
+
+# evaluate the model
+model %>% evaluate(test_data, test_labels)
 ```
-
-```{r}
-# generate starting ping numbers of gaps
-fishes <- unique(processed_data$fishNum)
-for (fish in fishes) {
-  specific_fish_ping_lag(fish)
-}
-```
-
-
-
-
-
-
 
 
