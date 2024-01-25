@@ -26,15 +26,17 @@ library("EBImage")
 
 ```{r}
 # Clearning the data
-load("C:/Users/aethe/Desktop/coursebook/Course materials/STA490/processed_AnalysisData.Rdata") 
+load("C:/Users/aethe/Desktop/coursebook/Course materials/STA490/processed_AnalysisData_no200.Rdata") 
 
-processed_data%>%group_by(spCode,fishNum)%>%count()
+processed_data_no200%>%group_by(spCode,fishNum)%>%count()
 
 # Remove individuals with missing transducers
-processed_data<-processed_data%>%filter(is.na(F100)==F)
+processed_data<-processed_data_no200%>%filter(is.na(F100)==F)
 
-# also remove individual LWF23018 (only two pings)
+# also remove individual LWF23018, SMB004, SMB013 (only two pings)
 processed_data<-processed_data%>%filter(fishNum!="LWF23018")
+processed_data<-processed_data%>%filter(fishNum!="SMB004")
+processed_data<-processed_data%>%filter(fishNum!="SMB013")
 
 # remove the individual with -9x10^38 TS
 processed_data<-processed_data[-36830,]
@@ -66,13 +68,15 @@ processed_data<-processed_data%>%filter(fishNum!="LT013")
 # LT23001 looks like there are barely any salvagable pings - remove all
 processed_data<-processed_data%>%filter(fishNum!="LT23001")
 
+#Retain lake trout, smallmouth bass, and lake whitefish
+processed_data<-processed_data%>%filter(spCode == 81 | spCode == 91 | spCode == 316)
 
 ## Cleaned data: 
-processed_data%>%filter(spCode==81)%>%group_by(fishNum)%>%count()
+#processed_data%>%filter(spCode==81)%>%group_by(fishNum)%>%count()
 # 21 fish, 22,792 pings
 
 ## Looking at cleaned LT data
-print(processed_data%>%filter(spCode==81)%>%group_by(fishNum)%>%summarise(TL=mean(totalLength)),n=21)
+#print(processed_data%>%filter(spCode==81)%>%group_by(fishNum)%>%summarise(TL=mean(totalLength)),n=21)
 
 
 ## Lake Whitefish Filtering
@@ -110,14 +114,16 @@ missing <- c(sum(is.na(fish$girth)),sum(is.na(fish$airbladderTotalLength)),
 
 # Remove F90, F90.5
 fish <- subset(fish, select=-c(F90,F90.5))
-fish <- fish[,c(3,52:475)]
+fish <- fish[,c(3,52:300)]
 sum(is.na(fish))
-fish$spCode <- ifelse(fish$spCode == 81, 1, 0)
+
+fish <- fish %>%
+  mutate(spCode = case_when(spCode == 81 ~ 1,
+                           spCode == 91 ~ 2,
+                           spCode == 316 ~ 0))
 
 #X-labels
-frequency <- seq(45, 260, by = 0.5)
-elements_to_remove <- seq(170.5, 172.5, by = 0.5)
-frequency <- frequency[!frequency %in% elements_to_remove]
+frequency <- seq(45, 170, by = 0.5)
 elements_to_remove <- c(90,90.5)
 frequency <- frequency[!frequency %in% elements_to_remove]
 
@@ -137,7 +143,9 @@ max(max)
 min <- plot_data %>% summarise_if(is.numeric, list(~ min(., na.rm=TRUE)))
 min(min)
 
+write.csv(fish, "C:/Users/aethe/Desktop/coursebook/Course materials/STA490/TS_Freq_array.csv", row.names=FALSE)
 ```
+
 
 ```{r, echo=FALSE, fig.height=3, fig.width=7, warning=FALSE}
 ggplot() +
