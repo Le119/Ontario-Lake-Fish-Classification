@@ -226,16 +226,16 @@ consec_timediff = c()
 i1=1
 new_ping_ts = data.frame(matrix(ncol = length(X1[1,]), nrow = 0))
 colnames(new_ping_ts) = colnames(X1)
-# for (i in 2:length(processed_data$spCode)){
-for (i in 2:12){ 
+for (i in 2:length(processed_data$spCode)){
+# for (i in 2:12){ 
   first = convert_to_datetime(processed_data$Ping_time[i - 1])
   second = convert_to_datetime(processed_data$Ping_time[i])
   consec_timediff=c(consec_timediff, as.numeric(difftime(first, second)))
   
-  if (abs(sum(consec_timediff)) >= 2){
+  if (abs(sum(consec_timediff)) >= 1){
     new_row = length(new_ping_ts[,f]) + 1
-    # for (f in 1:length(listf1)){
-    for (f in 1:5){
+    for (f in 1:length(listf1)){
+    # for (f in 1:5){
       a = as.list(processed_data[i1:i, listf1[f]])[[1]]
       new_ping_ts[new_row,f] = mean(a)
     }
