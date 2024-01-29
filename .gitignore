@@ -34,3 +34,4 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 processed_AnalysisData.Rdata
+processed_AnalysisData_no200.Rdata

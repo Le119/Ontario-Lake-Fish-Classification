@@ -1,0 +1,14 @@
+---
+title: "JanDataEDA"
+author: "Lewei Er"
+date: "2024-01-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+load("~/Ontario-Lake-Fish-Classification/processed_AnalysisData_no200.Rdata")
+```
+
+
+
+
