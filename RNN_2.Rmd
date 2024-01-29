@@ -1,0 +1,459 @@
+---
+title: "RNN-input-Alice"
+author: "Alice Zhang"
+date: '2024-01-29'
+output: html_document
+---
+
+```{r, warning=FALSE, message=FALSE}
+load("~/Downloads/processed_AnalysisData_no200.Rdata")
+# ls()
+# libraries
+library(dplyr)
+library(tidyr)
+```
+
+```{r}
+processed_data_no200%>%group_by(spCode,fishNum)%>%count()
+processed_data_no200 <-processed_data_no200 %>%filter(is.na(F100)==F)
+# also remove individual LWF23018 (only two pings)
+processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LWF23018")
+# remove the individual with -9x10^38 TS
+processed_data_no200 <-processed_data_no200[-36830,]
+# LT019 and LT23008 were dead the whole time. Remove.
+processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LT019")
+processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LT23008")
+# LT015 was at a very shallow depth and on quadrant for the majority of pinging, then seemed to move to the correct depth. Keep only those pings
+processed_data_no200 <- processed_data_no200[!(processed_data_no200$fishNum == "LT015" & processed_data_no200$Target_true_depth > 15.5 ) ,]
+# LT018 was rough on attachment too, also has two rythmic changes in depth - going to remove the times the fish was above 15.5m as this will get rid of the time that fish was being dragged potentially and the first part of the timeseries where the fish was rough
+processed_data_no200 <- processed_data_no200[!(processed_data_no200$fishNum == "LT018" & processed_data_no200$Target_true_depth > 15.5 ) ,]
+# LT23018 was rough on attachment, barely alive, but "suprisingly okay" coming back - no clear indication of when it got "okay" in the data so remove whole fish
+processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LT23018")
+# LT013 was almost dead on release as well as dead on retrival - remove all.
+processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LT013")
+# LT23001 looks like there are barely any salvagable pings - remove all
+processed_data_no200 <-processed_dat
+a_no200%>%filter(fishNum!="LT23001")
+## Cleaned data:
+processed_data_no200 %>%filter(spCode==81)%>%group_by(fishNum)%>%count()
+# 21 fish, 22,792 pings
+## Looking at cleaned LT data
+print(processed_data_no200%>%filter(spCode==81)%>%group_by(fishNum)%>%summarise(TL=mean(totalLength)),n=21)
+```
+
+```{r}
+## LWT
+
+# 23004 and 23014 both pretty much dead the whole time
+processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23004")
+processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23014")
+
+# 23006 and 23008 both "swam" upside down for the majority of the time
+processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23006")
+processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23008")
+
+install.packages("lubridate")
+library(lubridate)
+
+LWF011<-processed_data_no200%>%
+        filter(fishNum=="LWF011")%>%
+        mutate(Ping_time=strptime(Ping_time,format = "%H:%M:%S")-(60*60*4), hour=hour(Ping_time), minute=minute(Ping_time))%>%
+  filter(hour==19 | hour==20 & minute <= 9 | hour==20 & minute >= 13)%>%select(c(-hour,-minute))
+
+processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF011")
+processed_data_no200<-rbind(processed_data_no200,LWF011)
+# LWF23012 was held at a different depth for the full time, LWF009 was in poor condition on retrieval but activity score 3: keep for now but keep in mind.
+```
+
+```{r}
+# filter out spCode 102
+processed_data_no200<-processed_data_no200%>%filter(spCode!="102")
+# remove frequencies 
+processed_data_no200<-processed_data_no200%>%select(-F90)
+processed_data_no200<-processed_data_no200%>%select(-F90.5)
+```
+
+```{r}
+# Look at the cleaned processed_data
+# processed_data_no200
+column_names <- names(processed_data_no200)
+
+# Print the column names
+# print(column_names)
+
+# labels for each species
+y <- as.factor(processed_data_no200$spCode)
+# target strength as X for just one frequency (attempt)
+X_170 <- processed_data_no200$F170 # for F170
+
+# function for converting time
+convert_to_datetime <- function(time_str) {
+  return(as.POSIXct(time_str, format = "%H:%M:%OS"))
+}
+
+# Modify the Ping_time column to wanted format
+processed_data_no200 <- processed_data_no200 %>%
+  mutate(Ping_time = convert_to_datetime(Ping_time))
+```
+
+# Averaging Pings (1s)
+```{r}
+# averaging TS for pings within each 1 sec interval, generate new pings
+data_1sec <- processed_data_no200 %>%
+  arrange(fishNum, Ping_time) %>%
+  group_by(fishNum) %>%
+  filter(!is.na(as.numeric(Ping_time))) %>%  # Exclude rows with non-numeric Ping_time
+  mutate(Ping_time = as.numeric(Ping_time),  # Convert Ping_time to numeric
+         diff = Ping_time - lag(Ping_time, default = first(Ping_time))) %>%
+  mutate(region = cumsum(diff > 1)) %>%
+  ungroup() %>%
+  group_by(fishNum, region, .add = TRUE) %>%
+  filter(all(!is.na(diff), diff <= 1))  # Exclude rows with NAs in diff and diff > 1
+
+# Create data frames for each region
+## Each region one ping
+region_data_frames <- data_1sec %>%
+  group_split(fishNum, region)
+
+## Each region 3 pings
+
+# Print data frames for each region
+for (i in seq_along(region_data_frames)) {
+  cat("Region", i, ":\n")
+  print(region_data_frames[[i]])
+  cat("\n")
+}
+
+# create a dataframe, column1: the mean of the column F170 across the rows for each region, column2: the spCode, column 3 fishNum, column4: fishID (-original)
+```
+
+# Averaging Pings (0.5s)
+```{r}
+
+```
+
+
+```{r}
+# Assuming you want to store the results in a list
+result_list <- list()
+
+for (i in seq_along(region_data_frames)) {
+  current_region_data <- region_data_frames[[i]]
+
+  # Calculate the mean of the column F170 for each region
+  mean_F170 <- current_region_data %>%
+    summarise(mean_F170 = mean(F170, na.rm = TRUE))
+
+  # Extract spCode and fishNum for each region
+  spCode_fish <- current_region_data %>%
+    select(spCode) %>%
+    distinct()  # Assuming each region has the same spCode
+
+  # Combine the results into a single dataframe
+  region_result <- cbind(mean_F170, spCode_fish)
+
+  # Append the result to the list
+  result_list[[i]] <- region_result
+}
+
+# Print the list of dataframes
+for (i in seq_along(result_list)) {
+  cat("Region", i, ":\n")
+  print(result_list[[i]])
+  cat("\n")
+}
+
+library(dplyr)
+
+# Assuming you want to store the results in a list
+result_list <- list()
+
+for (i in seq_along(region_data_frames)) {
+  current_region_data <- region_data_frames[[i]]
+
+  # Remove specified columns
+  processed_data_no_cols <- current_region_data %>%
+    select(-fishNum, -forkLength, -FishTrack, -Fish_track_change_in_range, -Fish_track_change_in_depth)
+
+  # Select columns that start with F followed by an integer
+  selected_columns <- processed_data_no_cols %>%
+    select(matches("^F\\d+$")) %>%
+    mutate(across(everything(), as.numeric))
+
+  # Calculate the mean of the selected columns for each region
+  mean_frequencies <- processed_data_no_cols %>%
+    summarise(across(starts_with("F"), mean, na.rm = TRUE))
+
+  # Extract spCode for each region
+  spCode <- processed_data_no_cols %>%
+    distinct(spCode)
+
+  # Combine the results into a single dataframe
+  region_result <- cbind(mean_frequencies, spCode)
+
+  # Append the result to the list
+  result_list[[i]] <- region_result
+
+  # Save the result as a CSV file (adjust the file path as needed)
+  write.csv(region_result, file = paste0("region_", i, "_result.csv"), row.names = FALSE)
+}
+
+# Print the list of dataframes (optional)
+for (i in seq_along(result_list)) {
+  cat("Region", i, ":\n")
+  print(result_list[[i]])
+  cat("\n")
+}
+
+
+library(dplyr)
+
+# Assuming you want to store the results in a list
+result_list <- list()
+
+for (i in seq_along(region_data_frames)) {
+  current_region_data <- region_data_frames[[i]]
+
+  # Remove specified columns
+  processed_data_no_cols <- current_region_data %>%
+    select(-fishNum, -forkLength, -FishTrack, -Fish_track_change_in_range, -Fish_track_change_in_depth)
+
+  # Select columns that start with F followed by an integer
+  selected_columns <- processed_data_no_cols %>%
+    select(matches("^F\\d+$")) %>%
+    mutate(across(everything(), as.numeric))
+
+  # Calculate the mean of the selected columns for each region
+  mean_frequencies <- processed_data_no_cols %>%
+    summarise(across(starts_with("F"), mean, na.rm = TRUE))
+
+  # Extract spCode for each region
+  spCode <- processed_data_no_cols %>%
+    distinct(spCode)
+
+  # Combine the results into a single dataframe
+  region_result <- cbind(mean_frequencies, spCode)
+
+  # Append the result to the list
+  result_list[[i]] <- region_result
+}
+
+# Print the list of dataframes
+for (i in seq_along(result_list)) {
+  cat("Region", i, ":\n")
+  print(result_list[[i]])
+  cat("\n")
+}
+
+
+# for each region, save the values of the frequencies and the spcode
+
+# from F45 to F170, we have frequcies like F45, F45.5, F50,....F169.5, F170, I want to # create a dataframe, column1: the mean of the columns of the frequencies across the rows for each region, column2: the spCode
+library(dplyr)
+
+# Assuming you want to store the results in a list
+result_list <- list()
+
+for (i in seq_along(region_data_frames)) {
+  current_region_data <- region_data_frames[[i]]
+
+  # Select columns F45 to F170
+  selected_columns <- select(current_region_data, starts_with("F")) %>% # start with "F" and also follow with integer
+    select(F45:F170)
+
+  # Calculate the mean of the selected columns for each region
+  mean_frequencies <- current_region_data %>%
+    summarise(across(starts_with("F"), mean, na.rm = TRUE))
+
+  # Extract spCode for each region
+  spCode <- current_region_data %>%
+    distinct(spCode)
+
+  # Combine the results into a single dataframe
+  region_result <- cbind(mean_frequencies, spCode)
+
+  # Append the result to the list
+  result_list[[i]] <- region_result
+}
+
+# Print the list of dataframes
+for (i in seq_along(result_list)) {
+  cat("Region", i, ":\n")
+  print(result_list[[i]])
+  cat("\n")
+}
+```
+
+
+```{r}
+length(processed_data_no200)
+# processed_data_no200
+
+length(processed_data_no200_1sec)
+# processed_data_no200_1sec
+
+# LWT
+p1_processed_data_no200_LWT <- p1_processed_data_no200 %>%
+  filter(spCode == 91)
+
+# LT
+p1_processed_data_no200_LT <- p1_processed_data_no200 %>%
+  filter(spCode == 81)
+
+# SMB
+p1_processed_data_no200_LT <- p1_processed_data_no200 %>%
+  filter(spCode == 316)
+```
+
+# RNN Implementation
+```{r}
+# Install the required packages
+install.packages("keras")
+install.packages("tensorflow")
+
+# Load the installed packages
+library(keras)
+library(tensorflow)
+
+# RNN Implementation
+
+# prompt: create (x, y) for the input to RNN, x should be the TS_mean_2sec, y should be the species, the RNN is to conduct binary classification, also add the implementation of RNN
+
+# Reshape the input data
+input_data <- array_reshape(p1_processed_data_no200_LWT$TS_mean_2sec, c(dim(p1_processed_data_no200_LWT$TS_mean_2sec)[1], 1, 1))
+
+# Define the model
+rnn <- keras_model_sequential()
+rnn <- rnn %>%
+  layer_lstm(units = 128, return_sequences = TRUE, input_shape = c(1, 1)) %>%
+  layer_lstm(units = 128) %>%
+  layer_dense(units = 1, activation = 'sigmoid')
+
+# Compile the model
+rnn %>%
+  compile(optimizer = 'adam',
+          loss = 'binary_crossentropy',
+          metrics = c('accuracy'))
+
+# Train the model
+rnn %>%
+  fit(x = input_data,
+      y = p1_processed_data_no200_LWT$spCode,
+      epochs = 100,
+      batch_size = 32)
+
+# Evaluate the model
+rnn %>%
+  evaluate(x = input_data,
+           y = p1_processed_data_no200_LWT$spCode)
+
+
+
+### Previous methods to calculate time difference
+
+LT <- processed_data[processed_data$spCode == 81, ]
+
+# Function to convert time string to POSIXct
+convert_to_datetime <- function(time_str) {
+  return(as.POSIXct(time_str, format = "%H:%M:%OS"))
+}
+
+# Function to calculate the time difference for every 5 rows
+calculate_time_difference_for_five_rows <- function(data) {
+  time_differences <- numeric(0)
+
+  for (i in seq(1, nrow(data), by = 5)) {
+    if ((i + 4) <= nrow(data)) {
+      time_str1 <- data$Ping_time[i]
+      time_str2 <- data$Ping_time[i + 4]
+
+      time1 <- convert_to_datetime(time_str1)
+      time2 <- convert_to_datetime(time_str2)
+
+      time_difference <- as.numeric(difftime(time1, time2, units = "secs"))
+      time_differences <- c(time_differences, time_difference)
+    }
+  }
+
+  return(time_differences)
+}
+
+# Calculate time differences for every 5 rows
+time_differences <- calculate_time_difference_for_five_rows(LT)
+
+groups <- cumsum(abs(time_differences) >= 5)
+
+
+# Run-length encoding to calculate the length of each region
+lengths_of_regions <- rle(groups)$lengths
+
+# Print the lengths of each region
+print(lengths_of_regions)
+
+# choose 5 ping for each region, doesn't have to be same time interval
+
+LWT <- processed_data[processed_data$spCode == 91, ]
+
+# Function to convert time string to POSIXct
+convert_to_datetime <- function(time_str) {
+  return(as.POSIXct(time_str, format = "%H:%M:%OS"))
+}
+
+# Function to calculate the time difference for every 5 rows
+calculate_time_difference_for_five_rows <- function(data) {
+  time_differences <- numeric(0)
+
+  for (i in seq(1, nrow(data), by = 5)) {
+    if ((i + 4) <= nrow(data)) {
+      time_str1 <- data$Ping_time[i]
+      time_str2 <- data$Ping_time[i + 4]
+
+      time1 <- convert_to_datetime(time_str1)
+      time2 <- convert_to_datetime(time_str2)
+
+      time_difference <- as.numeric(difftime(time1, time2, units = "secs"))
+      time_differences <- c(time_differences, time_difference)
+    }
+  }
+
+  return(time_differences)
+}
+
+# Calculate time differences for every 5 rows
+time_differences <- calculate_time_difference_for_five_rows(LT)
+
+groups <- cumsum(abs(time_differences) >= 5)
+
+
+# Run-length encoding to calculate the length of each region
+lengths_of_regions <- rle(groups)$lengths
+
+# Print the lengths of each region
+print(lengths_of_regions)
+
+Ping_time_number <- processed_data[, c("Ping_time", "pingNumber")]
+
+# Function to convert time string to POSIXct
+convert_to_datetime <- function(time_str) {
+  return(as.POSIXct(time_str, format = "%H:%M:%OS"))
+}
+
+# I wanna calculate the time difference for every 5 pingNumber
+calculate_time_difference <- function(time_str1, time_str2) {
+
+  time1 <- convert_to_datetime(time_str1)
+  time2 <- convert_to_datetime(time_str2)
+
+
+  time_difference <- abs(difftime(time1, time2))
+
+  return(time_difference)
+}
+
+print(paste("Time difference:", as.numeric(time_difference), "seconds"))
+
+
+### frequencies as the columns
+### Take the average over the target strength across the frequencies
+```
+
