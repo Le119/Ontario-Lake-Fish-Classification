@@ -32,13 +32,13 @@ processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LT23018")
 # LT013 was almost dead on release as well as dead on retrival - remove all.
 processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LT013")
 # LT23001 looks like there are barely any salvagable pings - remove all
-processed_data_no200 <-processed_dat
-a_no200%>%filter(fishNum!="LT23001")
+processed_data_no200 <-processed_data_no200%>%filter(fishNum!="LT23001")
 ## Cleaned data:
 processed_data_no200 %>%filter(spCode==81)%>%group_by(fishNum)%>%count()
 # 21 fish, 22,792 pings
+
 ## Looking at cleaned LT data
-print(processed_data_no200%>%filter(spCode==81)%>%group_by(fishNum)%>%summarise(TL=mean(totalLength)),n=21)
+# print(processed_data_no200%>%filter(spCode==81)%>%group_by(fishNum)%>%summarise(TL=mean(totalLength)),n=21)
 ```
 
 ```{r}
@@ -52,7 +52,7 @@ processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23014")
 processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23006")
 processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23008")
 
-install.packages("lubridate")
+# install.packages("lubridate")
 library(lubridate)
 
 LWF011<-processed_data_no200%>%
@@ -111,11 +111,11 @@ data_1sec <- processed_data_no200 %>%
   filter(all(!is.na(diff), diff <= 1))  # Exclude rows with NAs in diff and diff > 1
 
 # Create data frames for each region
-## Each region one ping
+### here, region means each average taken (aka every 1 sec coverage) - not necessary the new fish*
 region_data_frames <- data_1sec %>%
-  group_split(fishNum, region)
+  # group_split(fishNum, region)
+  group_by(fishNum, region, .add=TRUE)%>%group_split()
 
-## Each region 3 pings
 
 # Print data frames for each region
 for (i in seq_along(region_data_frames)) {
@@ -127,13 +127,30 @@ for (i in seq_along(region_data_frames)) {
 # create a dataframe, column1: the mean of the column F170 across the rows for each region, column2: the spCode, column 3 fishNum, column4: fishID (-original)
 ```
 
-# Averaging Pings (0.5s)
+# Averaging Pings (0.9s)
 ```{r}
+# averaging TS for pings within each 0.9 sec interval, generate new pings
+data_09sec <- processed_data_no200 %>%
+  arrange(fishNum, Ping_time) %>%
+  group_by(fishNum) %>%
+  filter(!is.na(as.numeric(Ping_time))) %>%  # Exclude rows with non-numeric Ping_time
+  mutate(Ping_time = as.numeric(Ping_time),  # Convert Ping_time to numeric
+         diff = Ping_time - lag(Ping_time, default = first(Ping_time))) %>%
+  mutate(region = cumsum(diff > 0.9)) %>%
+  ungroup() %>%
+  group_by(fishNum, region, .add = TRUE) %>%
+  filter(all(!is.na(diff), diff <= 0.9))  # Exclude rows with NAs in diff and diff > 0.8
 
+# # Create data frames for each region
+# ### here, region means each average taken (aka every 1 sec coverage) - not necessary the new fish*
+# region_data_frames <- data_0.5sec %>%
+#   # group_split(fishNum, region)
+#   group_by(fishNum, region, .add=TRUE)%>%group_split()
 ```
 
 
 ```{r}
+### 1
 # Assuming you want to store the results in a list
 result_list <- list()
 
@@ -163,8 +180,7 @@ for (i in seq_along(result_list)) {
   cat("\n")
 }
 
-library(dplyr)
-
+### 2
 # Assuming you want to store the results in a list
 result_list <- list()
 
@@ -284,12 +300,36 @@ for (i in seq_along(result_list)) {
 }
 ```
 
+# Grouping pairs of pings into one region, generate new fish
+```{r}
+
+
+# library(purrr)
+# 
+# new_data_1sec <- data_1sec %>%
+#   group_by(fishNum) %>% # group pings by fishNum
+#   arrange(Ping_time) %>% # arrange by ping time
+#   group_by(keep.unused_groups = TRUE, .add = TRUE) %>% group_split() %>% # data split into groups based on fishNum
+#   map(function(group) { # create pairs in each fishNum, if odd remove last (problem: if only one ping after averaging, will lose entire fish)
+#     n <- nrow(group)
+#     if (n %% 2 != 0) {
+#       group <- group[-n, ]  # Remove the last row if the number of rows is odd
+#     }
+#     pair1 <- group[c(TRUE, FALSE), ] # to select alternate rows
+#     pair2 <- group[c(FALSE, TRUE), ]
+#     bind_rows(pair1, pair2)
+#   }) %>%
+#   bind_rows() %>%
+#   ungroup()
+
+```
+
 
 ```{r}
 length(processed_data_no200)
 # processed_data_no200
 
-length(processed_data_no200_1sec)
+length(data_1sec)
 # processed_data_no200_1sec
 
 # LWT
