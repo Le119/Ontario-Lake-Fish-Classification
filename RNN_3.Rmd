@@ -156,6 +156,7 @@ listf1=seq(from=F45index,to=(F45index-1)+length(f1),by=1) #columns identifying t
 
 
 # RNN Package
+## But, only binary classification
 https://github.com/bquast/rnn?tab=readme-ov-file
 ```{r}
 # install.packages('rnn')
