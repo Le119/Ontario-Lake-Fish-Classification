@@ -1,0 +1,213 @@
+---
+title: "RNN_3"
+author: "Alice Zhang"
+date: '2024-02-01'
+output: html_document
+---
+
+```{r, warning=FALSE, message=FALSE}
+load("~/Downloads/processed_AnalysisData_no200.Rdata")
+# ls()
+# libraries
+library(dplyr)
+library(tidyr)
+```
+
+```{r}
+processed_data_no200%>%group_by(spCode,fishNum)%>%count()
+processed_data_no200 <-processed_data_no200 %>%filter(is.na(F100)==F)
+# also remove individual LWF23018 (only two pings)
+processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LWF23018")
+# remove the individual with -9x10^38 TS
+processed_data_no200 <-processed_data_no200[-36830,]
+# LT019 and LT23008 were dead the whole time. Remove.
+processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LT019")
+processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LT23008")
+# LT015 was at a very shallow depth and on quadrant for the majority of pinging, then seemed to move to the correct depth. Keep only those pings
+processed_data_no200 <- processed_data_no200[!(processed_data_no200$fishNum == "LT015" & processed_data_no200$Target_true_depth > 15.5 ) ,]
+# LT018 was rough on attachment too, also has two rythmic changes in depth - going to remove the times the fish was above 15.5m as this will get rid of the time that fish was being dragged potentially and the first part of the timeseries where the fish was rough
+processed_data_no200 <- processed_data_no200[!(processed_data_no200$fishNum == "LT018" & processed_data_no200$Target_true_depth > 15.5 ) ,]
+# LT23018 was rough on attachment, barely alive, but "suprisingly okay" coming back - no clear indication of when it got "okay" in the data so remove whole fish
+processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LT23018")
+# LT013 was almost dead on release as well as dead on retrival - remove all.
+processed_data_no200 <-processed_data_no200 %>%filter(fishNum!="LT013")
+# LT23001 looks like there are barely any salvagable pings - remove all
+processed_data_no200 <-processed_data_no200%>%filter(fishNum!="LT23001")
+## Cleaned data:
+processed_data_no200 %>%filter(spCode==81)%>%group_by(fishNum)%>%count()
+# 21 fish, 22,792 pings
+
+## Looking at cleaned LT data
+# print(processed_data_no200%>%filter(spCode==81)%>%group_by(fishNum)%>%summarise(TL=mean(totalLength)),n=21)
+```
+
+```{r}
+## LWT
+
+# 23004 and 23014 both pretty much dead the whole time
+processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23004")
+processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23014")
+
+# 23006 and 23008 both "swam" upside down for the majority of the time
+processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23006")
+processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23008")
+
+# install.packages("lubridate")
+library(lubridate)
+
+LWF011<-processed_data_no200%>%
+        filter(fishNum=="LWF011")%>%
+        mutate(Ping_time=strptime(Ping_time,format = "%H:%M:%S")-(60*60*4), hour=hour(Ping_time), minute=minute(Ping_time))%>%
+  filter(hour==19 | hour==20 & minute <= 9 | hour==20 & minute >= 13)%>%select(c(-hour,-minute))
+
+processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF011")
+processed_data_no200<-rbind(processed_data_no200,LWF011)
+# LWF23012 was held at a different depth for the full time, LWF009 was in poor condition on retrieval but activity score 3: keep for now but keep in mind.
+```
+
+```{r}
+# filter out spCode 102
+processed_data_no200<-processed_data_no200%>%filter(spCode!="102")
+# remove frequencies 
+processed_data_no200<-processed_data_no200%>%select(-F90)
+processed_data_no200<-processed_data_no200%>%select(-F90.5)
+```
+
+```{r}
+# Look at the cleaned processed_data
+# processed_data_no200
+column_names <- names(processed_data_no200)
+
+# Print the column names
+# print(column_names)
+
+# labels for each species
+y <- as.factor(processed_data_no200$spCode)
+# target strength as X for just one frequency (attempt)
+# X_170 <- processed_data_no200$F170 # for F170 (attempt)
+
+# function for converting time
+convert_to_datetime <- function(time_str) {
+  return(as.POSIXct(time_str, format = "%H:%M:%OS"))
+}
+
+# Modify the Ping_time column to wanted format
+processed_data_no200 <- processed_data_no200 %>%
+  mutate(Ping_time = convert_to_datetime(Ping_time))
+```
+
+# Averaging Pings (1s)
+```{r}
+# averaging TS for pings within each 1 sec interval, generate new pings
+data_1sec <- processed_data_no200 %>%
+  arrange(fishNum, Ping_time) %>%
+  group_by(fishNum) %>%
+  filter(!is.na(as.numeric(Ping_time))) %>%  # Exclude rows with non-numeric Ping_time
+  mutate(Ping_time = as.numeric(Ping_time),  # Convert Ping_time to numeric
+         diff = Ping_time - lag(Ping_time, default = first(Ping_time))) %>%
+  mutate(region = cumsum(diff > 1)) %>%
+  ungroup() %>%
+  group_by(fishNum, region, .add = TRUE) %>%
+  filter(all(!is.na(diff), diff <= 1))  # Exclude rows with NAs in diff and diff > 1
+
+# Create data frames for each region
+### here, region means each average taken (aka every 1 sec coverage) - not necessary the new fish*
+region_data_frames <- data_1sec %>%
+  # group_split(fishNum, region)
+  group_by(fishNum, region, .add=TRUE)%>%group_split()
+
+
+# Print data frames for each region
+for (i in seq_along(region_data_frames)) {
+  cat("Region", i, ":\n")
+  print(region_data_frames[[i]])
+  cat("\n")
+}
+
+# create a dataframe, column1: the mean of the column F170 across the rows for each region, column2: the spCode, column 3 fishNum, column4: fishID (-original)
+```
+
+# Averaging Pings (0.9s)
+```{r}
+# averaging TS for pings within each 0.9 sec interval, generate new pings
+data_09sec <- processed_data_no200 %>%
+  arrange(fishNum, Ping_time) %>%
+  group_by(fishNum) %>%
+  filter(!is.na(as.numeric(Ping_time))) %>%  # Exclude rows with non-numeric Ping_time
+  mutate(Ping_time = as.numeric(Ping_time),  # Convert Ping_time to numeric
+         diff = Ping_time - lag(Ping_time, default = first(Ping_time))) %>%
+  mutate(region = cumsum(diff > 0.9)) %>%
+  ungroup() %>%
+  group_by(fishNum, region, .add = TRUE) %>%
+  filter(all(!is.na(diff), diff <= 0.9))  # Exclude rows with NAs in diff and diff > 0.9
+
+# # Create data frames for each region
+# ### here, region means each average taken (aka every 1 sec coverage) - not necessary the new fish*
+region_data_frames <- data_09sec %>%
+  # group_split(fishNum, region)
+  group_by(fishNum, region, .add=TRUE)%>%group_split()
+```
+
+```{r}
+F45index <- which(names(data_09sec) == "F45")
+f1=seq(from=45,to=89.5,by=0.5) #first group of frequencies
+listf1=seq(from=F45index,to=(F45index-1)+length(f1),by=1) #columns identifying the first group of frequencies
+```
+
+
+# RNN Package
+https://github.com/bquast/rnn?tab=readme-ov-file
+```{r}
+# install.packages('rnn')
+library(rnn)
+
+help('trainr')
+help('predictr')
+help(package='rnn')
+
+set.seed(1)
+train.id = sample(1:length(data_09sec$region), 0.7*length(data_09sec$region))
+df.train = data_09sec[train.id,]
+df.test = data_09sec[-train.id,]
+
+# x.train = array(cbind(df.train[,2], df.train[,listf1]), 
+#                 dim = c(length(train.id), length(df.train[1,]), 1)) # only take fishNum and TS info
+x.train = array(cbind(df.train[,2], df.train[,listf1]), 
+                dim = c(dim(df.train), length(df.train[1,])))
+y.train = array(df.train$spCode, dim = dim(x.train)) # take species label
+
+
+trainr(Y=y.train, X=x.train, batch_size=1, learningrate=0.1)
+```
+
+https://www.kaggle.com/code/rtatman/beginner-s-intro-to-rnn-s-in-r
+```{r}
+# read in the packages we'll use
+library(keras) # for deep learning
+library(tensorflow)
+library(tidyverse) # general utility functions
+library(caret) # machine learning utility functions
+
+batch_size <- 32 # number of sequences to look at at one time during training
+total_epochs <- 15 # how many times we'll look @ the whole dataset while training our model
+
+# set a random seed for reproducability
+set.seed(1)
+rnn = keras_model_sequential() # initialize model
+# our input layer
+rnn %>%
+    layer_dense(input_shape = dim(x.train)[2:3], units = length(df.train[1,]))
+rnn %>%
+    layer_dense(units = 1, activation = 'sigmoid') # output
+# look at our model architecture
+summary(rnn)
+rnn %>% compile(loss = 'binary_crossentropy', 
+                  optimizer = 'RMSprop', 
+                  metrics = c('accuracy'))
+```
+
+# R-CNN
+```{r}
+
+```
+

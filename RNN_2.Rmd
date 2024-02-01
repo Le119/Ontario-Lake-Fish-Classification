@@ -377,6 +377,7 @@ https://www.kaggle.com/code/rtatman/beginner-s-intro-to-rnn-s-in-r
 ```{r}
 # read in the packages we'll use
 library(keras) # for deep learning
+library(tensorflow)
 library(tidyverse) # general utility functions
 library(caret) # machine learning utility functions
 
@@ -389,7 +390,25 @@ rnn = keras_model_sequential() # initialize model
 # our input layer
 rnn %>%
     layer_dense(input_shape = dim(x.train)[2:3], units = length(df.train[1,]))
+rnn %>%
+    layer_dense(units = 1, activation = 'sigmoid') # output
+# look at our model architecture
+summary(rnn)
+rnn %>% compile(loss = 'binary_crossentropy', 
+                  optimizer = 'RMSprop', 
+                  metrics = c('accuracy'))
 ```
+
+```{r}
+# Actually train our model! This step will take a while
+trained_model <- model %>% fit(
+    x = X_train, # sequence we're using for prediction 
+    y = y_train, # sequence we're predicting
+    batch_size = batch_size, # how many samples to pass to our model at a time
+    epochs = total_epochs, # how many times we'll look @ the whole dataset
+    validation_split = 0.1) # how much data to hold out for testing as we go along
+```
+
 
 # RNN Implementation
 ```{r}
