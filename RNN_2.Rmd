@@ -139,13 +139,13 @@ data_09sec <- processed_data_no200 %>%
   mutate(region = cumsum(diff > 0.9)) %>%
   ungroup() %>%
   group_by(fishNum, region, .add = TRUE) %>%
-  filter(all(!is.na(diff), diff <= 0.9))  # Exclude rows with NAs in diff and diff > 0.8
+  filter(all(!is.na(diff), diff <= 0.9))  # Exclude rows with NAs in diff and diff > 0.9
 
 # # Create data frames for each region
 # ### here, region means each average taken (aka every 1 sec coverage) - not necessary the new fish*
-# region_data_frames <- data_0.5sec %>%
-#   # group_split(fishNum, region)
-#   group_by(fishNum, region, .add=TRUE)%>%group_split()
+region_data_frames <- data_09sec %>%
+  # group_split(fishNum, region)
+  group_by(fishNum, region, .add=TRUE)%>%group_split()
 ```
 
 
@@ -324,7 +324,6 @@ for (i in seq_along(result_list)) {
 
 ```
 
-
 ```{r}
 length(processed_data_no200)
 # processed_data_no200
@@ -344,156 +343,203 @@ p1_processed_data_no200_LT <- p1_processed_data_no200 %>%
 p1_processed_data_no200_LT <- p1_processed_data_no200 %>%
   filter(spCode == 316)
 ```
+```{r}
+F45index <- which(names(data_09sec) == "F45")
+f1=seq(from=45,to=89.5,by=0.5) #first group of frequencies
+listf1=seq(from=F45index,to=(F45index-1)+length(f1),by=1) #columns identifying the first group of frequencies
+```
+
+
+# RNN Package
+https://github.com/bquast/rnn?tab=readme-ov-file
+```{r}
+# install.packages('rnn')
+library(rnn)
+
+help('trainr')
+help('predictr')
+help(package='rnn')
+
+set.seed(1)
+train.id = sample(1:length(data_09sec$region), 0.7*length(data_09sec$region))
+df.train = data_09sec[train.id,]
+df.test = data_09sec[-train.id,]
+
+x.train = array(cbind(df.train[,2], df.train[,listf1]), 
+                dim = c(length(train.id), length(df.train[1,]), 1)) # only take fishNum and TS info
+y.train = array(df.train$spCode, dim = dim(x.train)) # take species label
+
+
+trainr(Y=y.train, X=x.train, batch_size=1, learningrate=0.1)
+```
+
+https://www.kaggle.com/code/rtatman/beginner-s-intro-to-rnn-s-in-r
+```{r}
+# read in the packages we'll use
+library(keras) # for deep learning
+library(tidyverse) # general utility functions
+library(caret) # machine learning utility functions
+
+batch_size <- 32 # number of sequences to look at at one time during training
+total_epochs <- 15 # how many times we'll look @ the whole dataset while training our model
+
+# set a random seed for reproducability
+set.seed(1)
+rnn = keras_model_sequential() # initialize model
+# our input layer
+rnn %>%
+    layer_dense(input_shape = dim(x.train)[2:3], units = length(df.train[1,]))
+```
 
 # RNN Implementation
 ```{r}
-# Install the required packages
-install.packages("keras")
-install.packages("tensorflow")
-
-# Load the installed packages
-library(keras)
-library(tensorflow)
-
-# RNN Implementation
-
-# prompt: create (x, y) for the input to RNN, x should be the TS_mean_2sec, y should be the species, the RNN is to conduct binary classification, also add the implementation of RNN
-
-# Reshape the input data
-input_data <- array_reshape(p1_processed_data_no200_LWT$TS_mean_2sec, c(dim(p1_processed_data_no200_LWT$TS_mean_2sec)[1], 1, 1))
-
-# Define the model
-rnn <- keras_model_sequential()
-rnn <- rnn %>%
-  layer_lstm(units = 128, return_sequences = TRUE, input_shape = c(1, 1)) %>%
-  layer_lstm(units = 128) %>%
-  layer_dense(units = 1, activation = 'sigmoid')
-
-# Compile the model
-rnn %>%
-  compile(optimizer = 'adam',
-          loss = 'binary_crossentropy',
-          metrics = c('accuracy'))
-
-# Train the model
-rnn %>%
-  fit(x = input_data,
-      y = p1_processed_data_no200_LWT$spCode,
-      epochs = 100,
-      batch_size = 32)
-
-# Evaluate the model
-rnn %>%
-  evaluate(x = input_data,
-           y = p1_processed_data_no200_LWT$spCode)
-
-
-
-### Previous methods to calculate time difference
-
-LT <- processed_data[processed_data$spCode == 81, ]
-
-# Function to convert time string to POSIXct
-convert_to_datetime <- function(time_str) {
-  return(as.POSIXct(time_str, format = "%H:%M:%OS"))
-}
-
-# Function to calculate the time difference for every 5 rows
-calculate_time_difference_for_five_rows <- function(data) {
-  time_differences <- numeric(0)
-
-  for (i in seq(1, nrow(data), by = 5)) {
-    if ((i + 4) <= nrow(data)) {
-      time_str1 <- data$Ping_time[i]
-      time_str2 <- data$Ping_time[i + 4]
-
-      time1 <- convert_to_datetime(time_str1)
-      time2 <- convert_to_datetime(time_str2)
-
-      time_difference <- as.numeric(difftime(time1, time2, units = "secs"))
-      time_differences <- c(time_differences, time_difference)
-    }
-  }
-
-  return(time_differences)
-}
-
-# Calculate time differences for every 5 rows
-time_differences <- calculate_time_difference_for_five_rows(LT)
-
-groups <- cumsum(abs(time_differences) >= 5)
-
-
-# Run-length encoding to calculate the length of each region
-lengths_of_regions <- rle(groups)$lengths
-
-# Print the lengths of each region
-print(lengths_of_regions)
-
-# choose 5 ping for each region, doesn't have to be same time interval
-
-LWT <- processed_data[processed_data$spCode == 91, ]
-
-# Function to convert time string to POSIXct
-convert_to_datetime <- function(time_str) {
-  return(as.POSIXct(time_str, format = "%H:%M:%OS"))
-}
-
-# Function to calculate the time difference for every 5 rows
-calculate_time_difference_for_five_rows <- function(data) {
-  time_differences <- numeric(0)
-
-  for (i in seq(1, nrow(data), by = 5)) {
-    if ((i + 4) <= nrow(data)) {
-      time_str1 <- data$Ping_time[i]
-      time_str2 <- data$Ping_time[i + 4]
-
-      time1 <- convert_to_datetime(time_str1)
-      time2 <- convert_to_datetime(time_str2)
-
-      time_difference <- as.numeric(difftime(time1, time2, units = "secs"))
-      time_differences <- c(time_differences, time_difference)
-    }
-  }
-
-  return(time_differences)
-}
-
-# Calculate time differences for every 5 rows
-time_differences <- calculate_time_difference_for_five_rows(LT)
-
-groups <- cumsum(abs(time_differences) >= 5)
-
-
-# Run-length encoding to calculate the length of each region
-lengths_of_regions <- rle(groups)$lengths
-
-# Print the lengths of each region
-print(lengths_of_regions)
-
-Ping_time_number <- processed_data[, c("Ping_time", "pingNumber")]
-
-# Function to convert time string to POSIXct
-convert_to_datetime <- function(time_str) {
-  return(as.POSIXct(time_str, format = "%H:%M:%OS"))
-}
-
-# I wanna calculate the time difference for every 5 pingNumber
-calculate_time_difference <- function(time_str1, time_str2) {
-
-  time1 <- convert_to_datetime(time_str1)
-  time2 <- convert_to_datetime(time_str2)
-
-
-  time_difference <- abs(difftime(time1, time2))
-
-  return(time_difference)
-}
-
-print(paste("Time difference:", as.numeric(time_difference), "seconds"))
-
-
-### frequencies as the columns
-### Take the average over the target strength across the frequencies
+# # Install the required packages
+# install.packages("keras")
+# install.packages("tensorflow")
+# 
+# # Load the installed packages
+# library(keras)
+# library(tensorflow)
+# 
+# # RNN Implementation
+# 
+# # prompt: create (x, y) for the input to RNN, x should be the TS_mean_2sec, y should be the species, the RNN is to conduct binary classification, also add the implementation of RNN
+# 
+# # Reshape the input data
+# input_data <- array_reshape(p1_processed_data_no200_LWT$TS_mean_2sec, c(dim(p1_processed_data_no200_LWT$TS_mean_2sec)[1], 1, 1))
+# 
+# # Define the model
+# rnn <- keras_model_sequential()
+# rnn <- rnn %>%
+#   layer_lstm(units = 128, return_sequences = TRUE, input_shape = c(1, 1)) %>%
+#   layer_lstm(units = 128) %>%
+#   layer_dense(units = 1, activation = 'sigmoid')
+# 
+# # Compile the model
+# rnn %>%
+#   compile(optimizer = 'adam',
+#           loss = 'binary_crossentropy',
+#           metrics = c('accuracy'))
+# 
+# # Train the model
+# rnn %>%
+#   fit(x = input_data,
+#       y = p1_processed_data_no200_LWT$spCode,
+#       epochs = 100,
+#       batch_size = 32)
+# 
+# # Evaluate the model
+# rnn %>%
+#   evaluate(x = input_data,
+#            y = p1_processed_data_no200_LWT$spCode)
+# 
+# 
+# 
+# ### Previous methods to calculate time difference
+# 
+# LT <- processed_data[processed_data$spCode == 81, ]
+# 
+# # Function to convert time string to POSIXct
+# convert_to_datetime <- function(time_str) {
+#   return(as.POSIXct(time_str, format = "%H:%M:%OS"))
+# }
+# 
+# # Function to calculate the time difference for every 5 rows
+# calculate_time_difference_for_five_rows <- function(data) {
+#   time_differences <- numeric(0)
+# 
+#   for (i in seq(1, nrow(data), by = 5)) {
+#     if ((i + 4) <= nrow(data)) {
+#       time_str1 <- data$Ping_time[i]
+#       time_str2 <- data$Ping_time[i + 4]
+# 
+#       time1 <- convert_to_datetime(time_str1)
+#       time2 <- convert_to_datetime(time_str2)
+# 
+#       time_difference <- as.numeric(difftime(time1, time2, units = "secs"))
+#       time_differences <- c(time_differences, time_difference)
+#     }
+#   }
+# 
+#   return(time_differences)
+# }
+# 
+# # Calculate time differences for every 5 rows
+# time_differences <- calculate_time_difference_for_five_rows(LT)
+# 
+# groups <- cumsum(abs(time_differences) >= 5)
+# 
+# 
+# # Run-length encoding to calculate the length of each region
+# lengths_of_regions <- rle(groups)$lengths
+# 
+# # Print the lengths of each region
+# print(lengths_of_regions)
+# 
+# # choose 5 ping for each region, doesn't have to be same time interval
+# 
+# LWT <- processed_data[processed_data$spCode == 91, ]
+# 
+# # Function to convert time string to POSIXct
+# convert_to_datetime <- function(time_str) {
+#   return(as.POSIXct(time_str, format = "%H:%M:%OS"))
+# }
+# 
+# # Function to calculate the time difference for every 5 rows
+# calculate_time_difference_for_five_rows <- function(data) {
+#   time_differences <- numeric(0)
+# 
+#   for (i in seq(1, nrow(data), by = 5)) {
+#     if ((i + 4) <= nrow(data)) {
+#       time_str1 <- data$Ping_time[i]
+#       time_str2 <- data$Ping_time[i + 4]
+# 
+#       time1 <- convert_to_datetime(time_str1)
+#       time2 <- convert_to_datetime(time_str2)
+# 
+#       time_difference <- as.numeric(difftime(time1, time2, units = "secs"))
+#       time_differences <- c(time_differences, time_difference)
+#     }
+#   }
+# 
+#   return(time_differences)
+# }
+# 
+# # Calculate time differences for every 5 rows
+# time_differences <- calculate_time_difference_for_five_rows(LT)
+# 
+# groups <- cumsum(abs(time_differences) >= 5)
+# 
+# 
+# # Run-length encoding to calculate the length of each region
+# lengths_of_regions <- rle(groups)$lengths
+# 
+# # Print the lengths of each region
+# print(lengths_of_regions)
+# 
+# Ping_time_number <- processed_data[, c("Ping_time", "pingNumber")]
+# 
+# # Function to convert time string to POSIXct
+# convert_to_datetime <- function(time_str) {
+#   return(as.POSIXct(time_str, format = "%H:%M:%OS"))
+# }
+# 
+# # I wanna calculate the time difference for every 5 pingNumber
+# calculate_time_difference <- function(time_str1, time_str2) {
+# 
+#   time1 <- convert_to_datetime(time_str1)
+#   time2 <- convert_to_datetime(time_str2)
+# 
+# 
+#   time_difference <- abs(difftime(time1, time2))
+# 
+#   return(time_difference)
+# }
+# 
+# print(paste("Time difference:", as.numeric(time_difference), "seconds"))
+# 
+# 
+# ### frequencies as the columns
+# ### Take the average over the target strength across the frequencies
 ```
 
