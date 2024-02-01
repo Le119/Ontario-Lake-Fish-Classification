@@ -197,7 +197,8 @@ set.seed(1)
 rnn = keras_model_sequential() # initialize model
 # our input layer
 rnn %>%
-    layer_dense(input_shape = dim(x.train)[2:3], units = length(df.train[1,]))
+    layer_dense(input_shape = dim(x.train)[2:3], 
+                units = length(df.train[1,]))
 rnn %>%
     layer_dense(units = 1, activation = 'sigmoid') # output
 # look at our model architecture
@@ -205,10 +206,40 @@ summary(rnn)
 rnn %>% compile(loss = 'binary_crossentropy', 
                   optimizer = 'RMSprop', 
                   metrics = c('accuracy'))
+
 ```
+
+```{r}
+x.train.ts = x.train
+x.train.ts[[1]] = NULL # no fishNum
+
+# Actually train our model! This step will take a while
+trained_model <- rnn %>% fit(
+    x = x.train.ts, # sequence we're using for prediction 
+    y = y.train, # sequence we're predicting
+    batch_size = batch_size, # how many samples to pass to our model at a time
+    epochs = total_epochs, # how many times we'll look @ the whole dataset
+    validation_split = 0.1) # how much data to hold out for testing as we go along
+```
+
 
 # R-CNN
 ```{r}
+
+```
+
+# installing tensorflow, using python in R
+```{r}
+library(reticulate)
+
+# Check current Python path
+use_python()
+
+# Set Python path to the correct environment
+use_python("/path/to/your/python")
+
+library(keras)
+install_tensorflow()
 
 ```
 
