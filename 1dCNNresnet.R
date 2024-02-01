@@ -96,7 +96,7 @@ input_shape <- c(249,1)
 
 # Define a simple residual block function
 simple_res_block <- function(input, filters, kernel_size, stride = 1) {
-  # Adjust input shape if necessary
+  # Adjust input shape
   part <- input %>%
     layer_conv_1d(filters = filters, kernel_size = 1, strides = stride, padding = "same") %>%
     layer_batch_normalization()
@@ -115,7 +115,7 @@ simple_res_block <- function(input, filters, kernel_size, stride = 1) {
   # Add the input (residual connection) to the output of the block
   output <- layer_add(list(input, part)) %>%
     layer_activation_relu()
-  
+
   return(output)
 }
 
@@ -131,10 +131,6 @@ x <- input %>%
 # Add simple residual blocks
 x <- simple_res_block(x, filters = 16, kernel_size = 3)
 x <- simple_res_block(x, filters = 16, kernel_size = 3)
-x <- simple_res_block(x, filters = 16, kernel_size = 3)
-x <- simple_res_block(x, filters = 16, kernel_size = 3)
-
-# You can add more blocks or layers as needed
 
 # Final layers
 x <- x %>%
