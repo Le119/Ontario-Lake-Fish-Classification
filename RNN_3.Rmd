@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r, warning=FALSE, message=FALSE}
-load("~/Downloads/processed_AnalysisData_no200.Rdata")
+load("processed_AnalysisData_no200.Rdata")
 # ls()
 # libraries
 library(dplyr)
