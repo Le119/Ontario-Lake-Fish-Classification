@@ -1,0 +1,499 @@
+---
+title: "RNN_4"
+author: "Alice Zhang"
+date: '2024-02-08'
+output: html_document
+---
+
+**this version combines Alice's data processing code and Jessica's code**  
+*-trying distinguish families (LT vs. SMB; LWF vs. SMB), binary classification*
+*-trying to train model without removing dead fish*
+
+```{r, warning=FALSE, message=FALSE}
+load("processed_AnalysisData_no200.Rdata")
+# ls()
+# libraries
+library(dplyr)
+library(tidyr)
+library(str2str)
+library(keras) # for deep learning
+library(caret) # machine learning utility functions
+library(lubridate)
+library(tidymodels)
+library(vip)
+library(rBayesianOptimization)
+library(tensorflow)
+library(tidyverse) # general utility functions
+```
+
+## Custom Function
+```{r}
+## Custom Function
+split_at_gap <- function(data, max_gap = 60, shortest_track = 0) {
+  # Number of tracks
+  n_tracks <- length(unique(data$ID))
+  
+  # Save old ID and reinitialise ID column
+  data$ID_old <- as.factor(data$ID)
+  data$ID <- character(nrow(data))
+  
+  # Loop over tracks (i.e., over IDs)
+  for(i_track in 1:n_tracks) {
+    # Indices for this track
+    ind_this_track <- which(data$ID_old == unique(data$ID_old)[i_track])
+    track_length <- length(ind_this_track)
+    
+    # Time intervals in min
+    dtimes <- difftime(data$time[ind_this_track[-1]], 
+                       data$time[ind_this_track[-track_length]],
+                       units = "secs")
+    
+    # Indices of gaps longer than max_gap
+    ind_gap <- c(0, which(dtimes > max_gap), track_length)
+    
+    # Create new ID based on split track
+    subtrack_ID <- rep(1:(length(ind_gap) - 1), diff(ind_gap))
+    data$ID[ind_this_track] <- paste0(data$ID_old[ind_this_track], "-", subtrack_ID)
+  }
+  
+  # Only keep sub-tracks longer than some duration
+  track_lengths <- sapply(unique(data$ID), function(id) {
+    ind <- which(data$ID == id)
+    difftime(data$time[ind[length(ind)]], data$time[ind[1]], units = "sec")
+  })
+  ID_keep <- names(track_lengths)[which(track_lengths >= shortest_track)]
+  data <- subset(data, ID %in% ID_keep)
+  
+  return(data)
+}
+```
+
+## Processing data (removing things)
+```{r}
+# make the name easier to type
+processed_data<-processed_data_no200 
+
+# look at structures of individual fish
+processed_data%>%group_by(spCode,fishNum)%>%count()
+
+# remove individuals with missing transducers
+processed_data <-processed_data %>%filter(is.na(F100)==F)
+
+# also remove individual LWF23018 (only two pings)
+processed_data <-processed_data %>%filter(fishNum!="LWF23018")
+
+# remove the individual with -9x10^38 TS
+processed_data <-processed_data[-36830,]
+
+# LT019 and LT23008 were dead the whole time. Remove.
+processed_data <-processed_data %>%filter(fishNum!="LT019")
+processed_data <-processed_data %>%filter(fishNum!="LT23008")
+
+# LT015 was at a very shallow depth and on quadrant for the majority of pinging, then seemed to move to the correct depth. Keep only those pings
+processed_data <- processed_data[!(processed_data$fishNum == "LT015" & processed_data$Target_true_depth > 15.5 ) ,]
+
+# LT018 was rough on attachment too, also has two rythmic changes in depth - going to remove the times the fish was above 15.5m as this will get rid of the time that fish was being dragged potentially and the first part of the timeseries where the fish was rough
+processed_data <- processed_data[!(processed_data$fishNum == "LT018" & processed_data$Target_true_depth > 15.5 ) ,]
+
+# LT23018 was rough on attachment, barely alive, but "suprisingly okay" coming back - no clear indication of when it got "okay" in the data so remove whole fish
+processed_data <-processed_data %>%filter(fishNum!="LT23018")
+
+# LT013 was almost dead on release as well as dead on retrival - remove all.
+processed_data <-processed_data %>%filter(fishNum!="LT013")
+
+# LT23001 looks like there are barely any salvagable pings - remove all
+processed_data <-processed_data%>%filter(fishNum!="LT23001")
+
+## Cleaned data:
+processed_data %>%filter(spCode==81)%>%group_by(fishNum)%>%count()
+# 21 fish, 22,792 pings
+
+## Looking at cleaned LT data
+# print(processed_data%>%filter(spCode==81)%>%group_by(fishNum)%>%summarise(TL=mean(totalLength)),n=21)
+```
+
+```{r}
+## LWT
+
+# 23004 and 23014 both pretty much dead the whole time
+processed_data<-processed_data%>%filter(fishNum!="LWF23004")
+processed_data<-processed_data%>%filter(fishNum!="LWF23014")
+
+# 23006 and 23008 both "swam" upside down for the majority of the time
+processed_data<-processed_data%>%filter(fishNum!="LWF23006")
+processed_data<-processed_data%>%filter(fishNum!="LWF23008")
+
+LWF011<-processed_data%>%
+        filter(fishNum=="LWF011")%>%
+        mutate(Ping_time=strptime(Ping_time,format = "%H:%M:%S")-(60*60*4),
+               hour=hour(Ping_time), minute=minute(Ping_time))%>%
+  filter(hour==19 | hour==20 & minute <= 9 | hour==20 & minute >= 13)%>%
+  select(c(-hour,-minute))
+
+processed_data<-processed_data%>%filter(fishNum!="LWF011")
+processed_data<-rbind(processed_data,LWF011)
+# LWF23012 was held at a different depth for the full time, LWF009 was in poor condition on retrieval but activity score 3: keep for now but keep in mind.
+
+
+## only keep LT (81), LWF (91), and SMB (316)
+processed_data<-processed_data%>%filter(spCode!="102") # filter out spCode 102
+## or also this option of doing it:
+# processed_data<-processed_data_no200%>%
+#   filter(spCode == "81" |spCode == "91"|spCode == "316")
+processed_data$species<-ifelse(processed_data$spCode==81, "LT",
+                               ifelse(processed_data$spCode == 91, "LWF","SMB"))
+
+
+# remove frequencies 
+processed_data <-processed_data %>%select(-F90)
+processed_data <-processed_data %>%select(-F90.5)
+```
+
+## Modifying time format
+```{r}
+# function for converting time
+convert_to_datetime <- function(time_str) {
+  return(as.POSIXct(time_str, format = "%H:%M:%OS"))
+}
+
+# Modify the Ping_time column to wanted format
+processed_data <- processed_data %>%
+  mutate(Ping_time = convert_to_datetime(Ping_time))
+```
+
+# Training/Test Sets
+```{r}
+set.seed(490)
+
+# split out training and validate/test sets
+split<-group_initial_split(processed_data,group=fishNum,strata = species, prop=0.7)
+train<-training(split)
+val_test<-testing(split)
+
+# split out validate and test sets
+split2<-group_initial_split(val_test,group=fishNum,strata = species, prop=0.5)
+validate<-training(split2)
+test<-testing(split2)
+
+train%>%group_by(species)%>%count()
+validate%>%group_by(species)%>%count()
+test%>%group_by(species)%>%count()
+```
+
+## Training Data
+```{r}
+# Group together and summarize any pings that occur less than 0.5secs apart. 
+data_0.5sec_train <- train%>%
+  select(fishNum,Ping_time,F45:F170,species)%>% #,F45:F170
+  mutate(ID= fishNum) %>% 
+  group_by(ID,time = floor_date(Ping_time, unit = "0.5 sec")) %>%
+  summarise(across(everything(), list(max))) %>%
+  ungroup() 
+
+data_0.5sec_train[,5:253]<-exp(data_0.5sec_train[,5:253]/10)
+
+# any data that occurs consecutively is given the same grouping. if there is a 0.5sec gap then it becomes a new group. specified here there shortest track should be 5.
+# each region contains 5 pings; each region contains pings from same original fish; if more than 5 for one fish but not enough to construct second region, the extras are discarded.
+data_0.5sec_train_grps<-split_at_gap(data = data_0.5sec_train, 
+             max_gap = 0.5, 
+             shortest_track = 5)
+```
+
+```{r}
+# Creating a listing variable within each group so that we can split groups longer than 5 into groups of 5
+data_0.5sec_train_grps<-data_0.5sec_train_grps%>%
+  group_by(ID)%>%
+  mutate(grp=rep(1:ceiling(n()/5), each=5, length.out=n()))%>%ungroup()
+
+# splitting into lists 
+listgrps_train<-data_0.5sec_train_grps%>%group_split(ID,grp)
+
+# keeping only lists that are of length 5
+listgrps_train<-listgrps_train[sapply(listgrps_train, nrow) >= 5]
+```
+
+### x data
+```{r}
+# Selecting the x data
+x_data_train<-list()
+
+for(i in 1:length(listgrps_train)){
+  x_data_train[[i]]<-listgrps_train[[i]]%>%select(F45_1:F170_1)
+}
+
+# each dataframe in the list to a matrix
+x_data_train<-lapply(x_data_train, as.matrix)
+
+# Flatten into a 3D array
+x_data_train<-lm2a(x_data_train,dim.order=c(3,1,2))
+
+# Check dims
+# should be n matrices of dimension 5*#freq
+dim(x_data_train)
+```
+
+### y data
+```{r}
+# Selecting the y data
+y_data_train<-vector()
+
+for(i in 1:length(listgrps_train)){
+a <-listgrps_train[[i]]%>%select(species_1)
+y_data_train[i]<-a[1,]
+}
+
+# Unlist
+y_data_train<-unlist(y_data_train)
+
+# Balance the classes
+summary(factor(y_data_train))
+
+# Balance the classes
+summary(factor(y_data_train)) # right now SMB have the least, is 313 in this case
+leastnum = summary(factor(y_data_train))["SMB"] # should change SMB to other if another has least num of data point
+```
+SMB=313. 
+LT=784, want 313, need remove 471. 
+LWF=324, want 313, need remove 11. 
+```{r}
+# # remove 535 LT & 131 LWF
+# set.seed(5)
+# rem<-sample(c(rep(0,535),rep(1,277)),812)
+# rem2<-sample(c(rep(0,131),rep(1,277)),408)
+# remove<-which(c(rem,rem2)==0)
+# x_data_train<-x_data_train[-c(remove),,]
+# y_data_train<-y_data_train[-remove]
+
+set.seed(5)
+rem<-sample(c(rep(0,471),rep(1,313)),784)
+rem2<-sample(c(rep(0,11),rep(1,313)),324)
+remove<-which(c(rem,rem2)==0)
+x_data_train<-x_data_train[-c(remove),,]
+y_data_train<-y_data_train[-remove]
+
+y_train<-NA
+y_train[y_data_train=="LT"]<-0
+y_train[y_data_train=="LWF"]<-1
+y_train[y_data_train=="SMB"]<-2
+summary(y_train)
+dummy_y_train<-to_categorical(y_train, num_classes = 3)
+
+# Shuffle data
+set.seed(250)
+x<-sample(1:nrow(x_data_train))
+x_data_train_S= x_data_train[x, ,] 
+dummy_y_train_S= dummy_y_train[x, ] 
+
+summary(as.factor(y_data_train))
+```
+
+### Validation Data
+```{r}
+# Group together and summarise any pings that occur less than 0.5secs apart. 
+data_0.5sec_validate <- validate%>%
+  select(fishNum,Ping_time,F45:F170,species)%>% #,F45:F170
+  mutate(ID= fishNum) %>% 
+  group_by(ID,time = floor_date(Ping_time, unit = "0.5 sec")) %>%
+  summarise(across(everything(), list(max))) %>%
+  ungroup() 
+
+data_0.5sec_validate[,5:249]<-exp(data_0.5sec_validate[,5:249]/10) # dimension need match x_train_data dimension
+
+# any data that occurs consecutively is given the same grouping. If there is a 0.5sec gap then it becomes a new group. I've specified here there shortest track should be 5.
+data_0.5sec_validate_grps<-split_at_gap(data = data_0.5sec_validate, 
+                                     max_gap = 0.5, 
+                                     shortest_track = 5)
+
+# Creating a listing variable within each group so that we can split groups longer than 5 into groups of 5
+data_0.5sec_validate_grps<-data_0.5sec_validate_grps%>%group_by(ID)%>%mutate(grp=rep(1:ceiling(n()/5), each=5, length.out=n()))%>%ungroup()
+
+# splitting into lists 
+listgrps_validate<-data_0.5sec_validate_grps%>%group_split(ID,grp)
+
+# keeping only lists that are of length 5
+listgrps_validate<-listgrps_validate[sapply(listgrps_validate, nrow) >= 5]
+```
+
+```{r}
+## Selecting the x data
+x_data_validate<-list()
+
+for(i in 1:length(listgrps_validate)){
+  x_data_validate[[i]]<-listgrps_validate[[i]]%>%select(F45_1:F170_1)
+}
+
+# each dataframe in the list to a matrix
+x_data_validate<-lapply(x_data_validate, as.matrix)
+
+# Flatten into a 3D array
+x_data_validate<-lm2a(x_data_validate,dim.order=c(3,1,2))
+
+# Check dims
+dim(x_data_validate)
+```
+
+```{r}
+## Selecting the y data
+y_data_validate<-vector()
+
+for(i in 1:length(listgrps_validate)){
+  a <-listgrps_validate[[i]]%>%select(species_1)
+  y_data_validate[i]<-a[1,]
+}
+
+# Unlist
+y_data_validate<-unlist(y_data_validate)
+
+# Balance the classes
+summary(factor(y_data_validate)) #need 62 
+
+# remove 108 LT & 43 LWF
+set.seed(5)
+rem<-sample(c(rep(0,108),rep(1,62)),170)
+rem2<-sample(c(rep(0,43),rep(1,62)),105)
+rem3<-rep(1,62) # SMB kept the same so no sampling for removal
+remove<-which(c(rem,rem2,rem3)==0)
+x_data_validate<-x_data_validate[-c(remove),,]
+y_data_validate<-y_data_validate[-remove]
+
+y_validate<-NA
+y_validate[y_data_validate=="LT"]<-0
+y_validate[y_data_validate=="LWF"]<-1
+y_validate[y_data_validate=="SMB"]<-2
+summary(y_validate)
+
+dummy_y_validate<-to_categorical(y_validate, num_classes = 3)
+
+# Shuffle data
+set.seed(250)
+x<-sample(1:nrow(x_data_validate))
+x_data_validate_S= x_data_validate[x, ,] 
+dummy_y_validate_S= dummy_y_validate[x, ] 
+
+summary(as.factor(y_data_validate))
+```
+
+### Test Data
+```{r}
+# Group together and summarise any pings that occur less than 0.5secs apart. 
+data_0.5sec_test <- test%>%
+  select(fishNum,Ping_time,F45:F170,species)%>% #,F45:F170
+  mutate(ID= fishNum) %>% 
+  group_by(ID,time = floor_date(Ping_time, unit = "0.5 sec")) %>%
+  summarise(across(everything(), list(max))) %>%
+  ungroup() 
+
+data_0.5sec_test[,5:249]<-exp(data_0.5sec_test[,5:249]/10) # 249=#frequencies
+
+# any data that occurs consecutively is given the same grouping. If there is a 0.5sec gap then it becomes a new group. I've specified here there shortest track should be 5.
+data_0.5sec_test_grps<-split_at_gap(data = data_0.5sec_test, 
+                                    max_gap = 0.5, 
+                                    shortest_track = 5)
+
+
+# Creating a listing variable within each group so that we can split groups longer than 5 into groups of 5
+data_0.5sec_test_grps<-data_0.5sec_test_grps%>%group_by(ID)%>%mutate(grp=rep(1:ceiling(n()/5), each=5, length.out=n()))%>%ungroup()
+
+# splitting into lists 
+listgrps_test<-data_0.5sec_test_grps%>%group_split(ID,grp)
+
+# keeping only lists that are of length 5
+listgrps_test<-listgrps_test[sapply(listgrps_test, nrow) >= 5]
+```
+
+```{r}
+## Selecting the x data
+x_data_test<-list()
+
+for(i in 1:length(listgrps_test)){
+  x_data_test[[i]]<-listgrps_test[[i]]%>%select(F45_1:F170_1)
+}
+
+# each dataframe in the list to a matrix
+x_data_test<-lapply(x_data_test, as.matrix)
+
+# Flatten into a 3D array
+x_data_test<-lm2a(x_data_test,dim.order=c(3,1,2))
+
+# Check dims
+dim(x_data_test)
+```
+
+```{r}
+## Selecting the y data
+y_data_test<-vector()
+
+for(i in 1:length(listgrps_test)){
+  a <-listgrps_test[[i]]%>%select(species_1)
+  y_data_test[i]<-a[1,]
+}
+
+# Unlist
+y_data_test<-unlist(y_data_test)
+
+# Balance the classes
+summary(factor(y_data_test)) #need 39 
+
+# remove 125 LT & 67 SMB, change number for removal based on dimension of the current processed data set
+set.seed(5)
+rem<-sample(c(rep(0,125),rep(1,12)),137)
+rem2<-rep(1,12)
+rem3<-sample(c(rep(0,67),rep(1,12)),79)
+remove<-which(c(rem,rem2,rem3)==0)
+x_data_test<-x_data_test[-c(remove),,]
+y_data_test<-y_data_test[-remove]
+
+
+y_test<-NA
+y_test[y_data_test=="LT"]<-0
+y_test[y_data_test=="LWF"]<-1
+y_test[y_data_test=="SMB"]<-2
+summary(y_test)
+dummy_y_test<-to_categorical(y_test, num_classes = 3)
+
+# Shuffle data
+set.seed(250)
+x<-sample(1:nrow(x_data_test))
+x_data_test_S= x_data_test[x, ,] 
+dummy_y_test_S= dummy_y_test[x, ] 
+
+summary(as.factor(y_data_test))
+```
+
+## Implement RNN Model
+```{r}
+rnn = keras_model_sequential() # initialize model
+# our input layer
+rnn %>%
+  layer_simple_rnn(input_shape=c(5,249), units = 200, dropout = 0, 
+                   recurrent_dropout = 0, time_major=F) %>% 
+  layer_dense(units = 80, activation = 'relu')%>%
+  layer_dense(units = 60, activation = 'relu')%>%
+  layer_dense(units = 40, activation = 'relu')%>%
+  layer_dense(units = 20, activation = 'relu')%>%
+  layer_dense(units = 3, activation = 'softmax')
+# look at our model architecture
+summary(rnn)
+rnn %>% compile(
+  loss = loss_categorical_crossentropy,
+  optimizer = optimizer_adam(),
+  metrics = c('accuracy')
+)
+
+history <- rnn %>% fit(
+  x_data_train_S, dummy_y_train_S,
+  batch_size = 100, 
+  epochs = 40,
+  validation_data = list(x_data_validate_S,dummy_y_validate_S))
+
+evaluate(rnn, x_data_test_S, dummy_y_test_S) 
+plot(history)
+
+preds<-predict(rnn, x=x_data_test_S)
+
+species.predictions<-apply(preds,1,which.max)
+species.predictions<-as.factor(ifelse(species.predictions == 1, "LT",
+                               ifelse(species.predictions == 2, "LWF", "SMB")))
+confusionMatrix(species.predictions,as.factor(y_data_test))
+```
+

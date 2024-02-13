@@ -11,6 +11,15 @@ load("processed_AnalysisData_no200.Rdata")
 # libraries
 library(dplyr)
 library(tidyr)
+library(str2str)
+library(keras) # for deep learning
+library(caret) # machine learning utility functions
+library(lubridate)
+library(tidymodels)
+library(vip)
+library(rBayesianOptimization)
+library(tensorflow)
+library(tidyverse) # general utility functions
 ```
 
 ```{r}
@@ -53,12 +62,13 @@ processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23006")
 processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF23008")
 
 # install.packages("lubridate")
-library(lubridate)
+# library(lubridate)
 
 LWF011<-processed_data_no200%>%
         filter(fishNum=="LWF011")%>%
         mutate(Ping_time=strptime(Ping_time,format = "%H:%M:%S")-(60*60*4), hour=hour(Ping_time), minute=minute(Ping_time))%>%
-  filter(hour==19 | hour==20 & minute <= 9 | hour==20 & minute >= 13)%>%select(c(-hour,-minute))
+  filter(hour==19 | hour==20 & minute <= 9 | hour==20 & minute >= 13)%>%
+  select(c(-hour,-minute))
 
 processed_data_no200<-processed_data_no200%>%filter(fishNum!="LWF011")
 processed_data_no200<-rbind(processed_data_no200,LWF011)
@@ -102,7 +112,7 @@ processed_data_no200 <- processed_data_no200 %>%
 data_1sec <- processed_data_no200 %>%
   arrange(fishNum, Ping_time) %>%
   group_by(fishNum) %>%
-  filter(!is.na(as.numeric(Ping_time))) %>%  # Exclude rows with non-numeric Ping_time
+  filter(!is.na(as.numeric(Ping_time))) %>% # Exclude rows with non-numeric Ping_time
   mutate(Ping_time = as.numeric(Ping_time),  # Convert Ping_time to numeric
          diff = Ping_time - lag(Ping_time, default = first(Ping_time))) %>%
   mutate(region = cumsum(diff > 1)) %>%
@@ -160,11 +170,11 @@ listf1=seq(from=F45index,to=(F45index-1)+length(f1),by=1) #columns identifying t
 https://github.com/bquast/rnn?tab=readme-ov-file
 ```{r}
 # install.packages('rnn')
-library(rnn)
-
-help('trainr')
-help('predictr')
-help(package='rnn')
+# library(rnn)
+# 
+# help('trainr')
+# help('predictr')
+# help(package='rnn')
 
 set.seed(1)
 train.id = sample(1:length(data_09sec$region), 0.7*length(data_09sec$region))
@@ -173,21 +183,21 @@ df.test = data_09sec[-train.id,]
 
 # x.train = array(cbind(df.train[,2], df.train[,listf1]), 
 #                 dim = c(length(train.id), length(df.train[1,]), 1)) # only take fishNum and TS info
+
 x.train = array(cbind(df.train[,2], df.train[,listf1]), 
                 dim = c(dim(df.train), length(df.train[1,])))
 y.train = array(df.train$spCode, dim = dim(x.train)) # take species label
 
-
-trainr(Y=y.train, X=x.train, batch_size=1, learningrate=0.1)
+# trainr(Y=y.train, X=x.train, batch_size=1, learningrate=0.1)
 ```
 
 https://www.kaggle.com/code/rtatman/beginner-s-intro-to-rnn-s-in-r
 ```{r}
 # read in the packages we'll use
-library(keras) # for deep learning
-library(tensorflow)
-library(tidyverse) # general utility functions
-library(caret) # machine learning utility functions
+# library(keras) # for deep learning
+# library(tensorflow)
+# library(tidyverse) # general utility functions
+# library(caret) # machine learning utility functions
 
 batch_size <- 32 # number of sequences to look at at one time during training
 total_epochs <- 15 # how many times we'll look @ the whole dataset while training our model
@@ -201,12 +211,12 @@ rnn %>%
                 units = length(df.train[1,]))
 rnn %>%
     layer_dense(units = 1, activation = 'sigmoid') # output
+
 # look at our model architecture
 summary(rnn)
 rnn %>% compile(loss = 'binary_crossentropy', 
                   optimizer = 'RMSprop', 
                   metrics = c('accuracy'))
-
 ```
 
 ```{r}
