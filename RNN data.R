@@ -351,30 +351,37 @@ dummy_y_test_S= dummy_y_test[x, ]
 summary(as.factor(y_data_test))
 
 
+rnn <- keras_model_sequential() 
 
-
-rnn = keras_model_sequential() # initialize model
-# our input layer
+# Add LSTM layers with dropout
 rnn %>%
-  layer_simple_rnn(input_shape=c(5,249), units = 200, dropout = 0, recurrent_dropout = 0,time_major=F) %>% 
-  layer_dense(units = 80, activation = 'relu')%>%
-  layer_dense(units = 3, activation = 'softmax')
-# look at our model architecture
-summary(rnn)
+  layer_lstm(input_shape=c(5, 249), units=200, dropout=0.2, recurrent_dropout=0.2, return_sequences=TRUE) %>%
+  layer_lstm(units=200, dropout=0.2, recurrent_dropout=0.2) %>%
+  layer_dense(units=80, activation='relu') %>%
+  layer_dense(units=3, activation='softmax')
+
+# Compile the model
 rnn %>% compile(
   loss = loss_categorical_crossentropy,
   optimizer = optimizer_adam(),
   metrics = c('accuracy')
 )
 
+# Fit the model with early stopping
 history <- rnn %>% fit(
   x_data_train_S, dummy_y_train_S,
   batch_size = 100, 
   epochs = 40,
-  validation_data = list(x_data_validate_S,dummy_y_validate_S))
+  validation_data = list(x_data_validate_S, dummy_y_validate_S),
+  callbacks = list(callback_early_stopping(patience=5))
+)
 
+# Evaluate the model
 evaluate(rnn, x_data_test_S, dummy_y_test_S) 
+
+# Plot training history
 plot(history)
+
 
 preds<-predict(rnn, x=x_data_test_S)
 
