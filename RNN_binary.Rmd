@@ -1,13 +1,12 @@
 ---
-title: "RNN_4"
+title: "RNN_binary"
 author: "Alice Zhang"
-date: '2024-02-08'
+date: '2024-02-15'
 output: html_document
 ---
 
 **this version combines Alice's data processing code and Jessica's code**  
 *-trying distinguish families (LT vs. SMB; LWF vs. SMB), binary classification*
-*-trying to train model without removing dead fish*
 
 ```{r, warning=FALSE, message=FALSE}
 load("processed_AnalysisData_no200.Rdata")
@@ -93,16 +92,16 @@ processed_data <-processed_data %>%filter(fishNum!="LT23008")
 processed_data <- processed_data[!(processed_data$fishNum == "LT015" & processed_data$Target_true_depth > 15.5 ) ,]
 
 # LT018 was rough on attachment too, also has two rythmic changes in depth - going to remove the times the fish was above 15.5m as this will get rid of the time that fish was being dragged potentially and the first part of the timeseries where the fish was rough
-# processed_data <- processed_data[!(processed_data$fishNum == "LT018" & processed_data$Target_true_depth > 15.5 ) ,]
+processed_data <- processed_data[!(processed_data$fishNum == "LT018" & processed_data$Target_true_depth > 15.5 ) ,]
 
 # LT23018 was rough on attachment, barely alive, but "suprisingly okay" coming back - no clear indication of when it got "okay" in the data so remove whole fish
-# processed_data <-processed_data %>%filter(fishNum!="LT23018")
+processed_data <-processed_data %>%filter(fishNum!="LT23018")
 
 # LT013 was almost dead on release as well as dead on retrival - remove all.
-# processed_data <-processed_data %>%filter(fishNum!="LT013")
+processed_data <-processed_data %>%filter(fishNum!="LT013")
 
 # LT23001 looks like there are barely any salvagable pings - remove all
-# processed_data <-processed_data%>%filter(fishNum!="LT23001")
+processed_data <-processed_data%>%filter(fishNum!="LT23001")
 
 ## Cleaned data:
 processed_data %>%filter(spCode==81)%>%group_by(fishNum)%>%count()
@@ -113,35 +112,34 @@ processed_data %>%filter(spCode==81)%>%group_by(fishNum)%>%count()
 ```
 
 ```{r}
-## LWT
+# ## LWT
+# 
+# # 23004 and 23014 both pretty much dead the whole time
+# processed_data<-processed_data%>%filter(fishNum!="LWF23004")
+# processed_data<-processed_data%>%filter(fishNum!="LWF23014")
 
-# 23004 and 23014 both pretty much dead the whole time
-processed_data<-processed_data%>%filter(fishNum!="LWF23004")
-processed_data<-processed_data%>%filter(fishNum!="LWF23014")
-
-# 23006 and 23008 both "swam" upside down for the majority of the time
+# # 23006 and 23008 both "swam" upside down for the majority of the time
 # processed_data<-processed_data%>%filter(fishNum!="LWF23006")
 # processed_data<-processed_data%>%filter(fishNum!="LWF23008")
-
-LWF011<-processed_data%>%
-        filter(fishNum=="LWF011")%>%
-        mutate(Ping_time=strptime(Ping_time,format = "%H:%M:%S")-(60*60*4),
-               hour=hour(Ping_time), minute=minute(Ping_time))%>%
-  filter(hour==19 | hour==20 & minute <= 9 | hour==20 & minute >= 13)%>%
-  select(c(-hour,-minute))
-
-processed_data<-processed_data%>%filter(fishNum!="LWF011")
-processed_data<-rbind(processed_data,LWF011)
+# 
+# LWF011<-processed_data%>%
+#         filter(fishNum=="LWF011")%>%
+#         mutate(Ping_time=strptime(Ping_time,format = "%H:%M:%S")-(60*60*4),
+#                hour=hour(Ping_time), minute=minute(Ping_time))%>%
+#   filter(hour==19 | hour==20 & minute <= 9 | hour==20 & minute >= 13)%>%
+#   select(c(-hour,-minute))
+# 
+# processed_data<-processed_data%>%filter(fishNum!="LWF011")
+# processed_data<-rbind(processed_data,LWF011)
 # LWF23012 was held at a different depth for the full time, LWF009 was in poor condition on retrieval but activity score 3: keep for now but keep in mind.
 
 
-## only keep LT (81), LWF (91), and SMB (316)
-processed_data<-processed_data%>%filter(spCode!="102") # filter out spCode 102
+## only keep LT (81), and SMB (316)
+processed_data<-processed_data%>%filter(spCode == "81"|spCode == "316") # filter out spCode 102, 91
 ## or also this option of doing it:
 # processed_data<-processed_data_no200%>%
 #   filter(spCode == "81" |spCode == "91"|spCode == "316")
-processed_data$species<-ifelse(processed_data$spCode==81, "LT",
-                               ifelse(processed_data$spCode == 91, "LWF","SMB"))
+processed_data$species<-ifelse(processed_data$spCode==316, "SMB", "LT")
 
 
 # remove frequencies 
@@ -252,9 +250,7 @@ summary(factor(y_data_train))
 summary(factor(y_data_train)) # right now SMB have the least, is 313 in this case
 leastnum = summary(factor(y_data_train))["SMB"] # should change SMB to other if another has least num of data point
 ```
-SMB=313. 
-LT=784, want 313, need remove 471. 
-LWF=324, want 313, need remove 11. 
+
 ```{r}
 # # remove 535 LT & 131 LWF
 # set.seed(5)
@@ -265,18 +261,17 @@ LWF=324, want 313, need remove 11.
 # y_data_train<-y_data_train[-remove]
 
 set.seed(5)
-rem<-sample(c(rep(0,589),rep(1,340)),929)
-rem2<-sample(c(rep(0,76),rep(1,340)),416)
-remove<-which(c(rem,rem2)==0)
+rem<-sample(c(rep(0,335),rep(1,302)),637)
+# rem2<-sample(c(rep(0,11),rep(1,313)),324)
+remove<-which(c(rem)==0)
 x_data_train<-x_data_train[-c(remove),,]
 y_data_train<-y_data_train[-remove]
 
 y_train<-NA
 y_train[y_data_train=="LT"]<-0
-y_train[y_data_train=="LWF"]<-1
-y_train[y_data_train=="SMB"]<-2
+y_train[y_data_train=="SMB"]<-1
 summary(y_train)
-dummy_y_train<-to_categorical(y_train, num_classes = 3)
+dummy_y_train<-to_categorical(y_train, num_classes = 2)
 
 # Shuffle data
 set.seed(250)
@@ -347,22 +342,19 @@ y_data_validate<-unlist(y_data_validate)
 # Balance the classes
 summary(factor(y_data_validate)) #need 62 
 
-# remove 108 LT & 43 LWF
 set.seed(5)
-rem<-sample(c(rep(0,142),rep(1,61)),203)
-rem2<-rep(1,61)
-rem3<-sample(c(rep(0,11),rep(1,61)),72)
-remove<-which(c(rem,rem2,rem3)==0)
+rem<-sample(c(rep(0,32),rep(1,87)),119)
+rem2<-rep(1,87) # SMB kept the same so no sampling for removal
+remove<-which(c(rem,rem2)==0)
 x_data_validate<-x_data_validate[-c(remove),,]
 y_data_validate<-y_data_validate[-remove]
 
 y_validate<-NA
 y_validate[y_data_validate=="LT"]<-0
-y_validate[y_data_validate=="LWF"]<-1
-y_validate[y_data_validate=="SMB"]<-2
+y_validate[y_data_validate=="SMB"]<-1
 summary(y_validate)
 
-dummy_y_validate<-to_categorical(y_validate, num_classes = 3)
+dummy_y_validate<-to_categorical(y_validate, num_classes = 2)
 
 # Shuffle data
 set.seed(250)
@@ -432,24 +424,22 @@ for(i in 1:length(listgrps_test)){
 y_data_test<-unlist(y_data_test)
 
 # Balance the classes
-summary(factor(y_data_test)) 
+summary(factor(y_data_test))
 
 # remove 125 LT & 67 SMB, change number for removal based on dimension of the current processed data set
 set.seed(5)
-rem<-sample(c(rep(0,42),rep(1,24)),66)
-rem2<-rep(1,24)
-rem3<-sample(c(rep(0,18),rep(1,24)),42)
-remove<-which(c(rem,rem2,rem3)==0)
+rem<-sample(c(rep(0,270),rep(1,65)),335)
+rem2<-rep(1,65)
+remove<-which(c(rem,rem2)==0)
 x_data_test<-x_data_test[-c(remove),,]
 y_data_test<-y_data_test[-remove]
 
 
 y_test<-NA
 y_test[y_data_test=="LT"]<-0
-y_test[y_data_test=="LWF"]<-1
-y_test[y_data_test=="SMB"]<-2
+y_test[y_data_test=="SMB"]<-1
 summary(y_test)
-dummy_y_test<-to_categorical(y_test, num_classes = 3)
+dummy_y_test<-to_categorical(y_test, num_classes = 2)
 
 # Shuffle data
 set.seed(250)
@@ -463,12 +453,20 @@ summary(as.factor(y_data_test))
 ## Implement RNN Model
 ```{r}
 rnn = keras_model_sequential() # initialize model
+
 # our input layer
 rnn %>%
-  layer_simple_rnn(input_shape=c(5,249), units = 200, dropout = 0,
-                   recurrent_dropout = 0,time_major=F) %>% # output shape is (batch_size, units)
+  layer_simple_rnn(input_shape=c(5,249), units = 200, dropout = 0, 
+                   recurrent_dropout = 0,time_major=F) %>% 
   layer_dense(units=80, activation='relu') %>%
-  layer_dense(units=3, activation='softmax')
+  layer_dense(units=2, activation='softmax')
+  # layer_lstm(input_shape=c(5, 249), units=200, dropout=0.2, recurrent_dropout=0.2, 
+  #            return_sequences=TRUE) %>%
+  # layer_lstm(units=200, dropout=0.2, recurrent_dropout=0.2, return_sequences=TRUE) %>%
+  # layer_lstm(units=200, dropout=0.2, recurrent_dropout=0.2) %>%
+  # layer_batch_normalization() %>%
+  # layer_dense(units=80, activation='relu') %>%
+  # layer_dense(units=3, activation='softmax')
 
 
 # look at our model architecture
@@ -491,8 +489,7 @@ plot(history)
 preds<-predict(rnn, x=x_data_test_S)
 
 species.predictions<-apply(preds,1,which.max)
-species.predictions<-as.factor(ifelse(species.predictions == 1, "LT",
-                               ifelse(species.predictions == 2, "LWF", "SMB")))
+species.predictions<-as.factor(ifelse(species.predictions == 1, "LT","SMB"))
 confusionMatrix(species.predictions,as.factor(y_data_test))
 ```
 
