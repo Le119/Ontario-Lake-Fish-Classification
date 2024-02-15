@@ -262,8 +262,8 @@ leastnum = summary(factor(y_data_train))["SMB"] # should change SMB to other if 
 
 set.seed(5)
 rem<-sample(c(rep(0,335),rep(1,302)),637)
-# rem2<-sample(c(rep(0,11),rep(1,313)),324)
-remove<-which(c(rem)==0)
+rem2<-rep(1,302)
+remove<-which(c(rem, rem2)==0)
 x_data_train<-x_data_train[-c(remove),,]
 y_data_train<-y_data_train[-remove]
 
@@ -459,7 +459,9 @@ rnn %>%
   layer_simple_rnn(input_shape=c(5,249), units = 200, dropout = 0, 
                    recurrent_dropout = 0,time_major=F) %>% 
   layer_dense(units=80, activation='relu') %>%
-  layer_dense(units=2, activation='softmax')
+  layer_dense(units=80, activation='relu') %>%
+  # layer_dense(units=40, activation='relu') %>%
+  layer_dense(units=2, activation='sigmoid')
   # layer_lstm(input_shape=c(5, 249), units=200, dropout=0.2, recurrent_dropout=0.2, 
   #            return_sequences=TRUE) %>%
   # layer_lstm(units=200, dropout=0.2, recurrent_dropout=0.2, return_sequences=TRUE) %>%
@@ -480,7 +482,7 @@ rnn %>% compile(
 history <- rnn %>% fit(
   x_data_train_S, dummy_y_train_S,
   batch_size = 100, 
-  epochs = 40,
+  epochs = 100,
   validation_data = list(x_data_validate_S,dummy_y_validate_S))
 
 evaluate(rnn, x_data_test_S, dummy_y_test_S) 

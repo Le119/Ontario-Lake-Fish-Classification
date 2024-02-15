@@ -482,7 +482,7 @@ rnn %>% compile(
 history <- rnn %>% fit(
   x_data_train_S, dummy_y_train_S,
   batch_size = 100, 
-  epochs = 40,
+  epochs = 100,
   validation_data = list(x_data_validate_S,dummy_y_validate_S))
 
 evaluate(rnn, x_data_test_S, dummy_y_test_S) 
