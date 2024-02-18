@@ -468,6 +468,7 @@ rnn %>%
   layer_simple_rnn(input_shape=c(5,249), units = 200, dropout = 0,
                    recurrent_dropout = 0,time_major=F) %>% # output shape is (batch_size, units)
   layer_dense(units=80, activation='relu') %>%
+  layer_dense(units=80, activation='relu') %>%
   layer_dense(units=3, activation='softmax')
 
 
