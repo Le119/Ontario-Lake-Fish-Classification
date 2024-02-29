@@ -31,9 +31,9 @@ train%>%group_by(species)%>%count()
 validate%>%group_by(species)%>%count()
 test%>%group_by(species)%>%count()
 
-train <- slice_sample(train, n = 6882, by = species)
-validate <- slice_sample(validate, n = 1125, by = species)
-test <- slice_sample(test, n = 1127, by = species)
+train <- slice_sample(train, n = 6378, by = species)
+validate <- slice_sample(validate, n = 1382, by = species)
+test <- slice_sample(test, n = 1374, by = species)
 
 train%>%group_by(species)%>%count()
 validate%>%group_by(species)%>%count()
@@ -49,14 +49,12 @@ metadata_train <- train %>% select(Angle_minor_axis, Angle_major_axis, aspectAng
 metadata_test <- test %>% select(Angle_minor_axis, Angle_major_axis, aspectAngle) %>% as.matrix()
 
 x_train <- train %>% select(52:300)
-xmean<-attributes(x_train)$`scaled:center`
-xsd<-attributes(x_train)$`scaled:scale`
-
-x_train <- train %>% select(52:300)
 x_train<-x_train+10*log10(450/train$totalLength)
 x_train<-exp(x_train/10)
 x_train<-x_train%>%scale()
 x_train<-as.matrix(x_train)
+xmean<-attributes(x_train)$`scaled:center`
+xsd<-attributes(x_train)$`scaled:scale`
 x_test <- test %>% select(52:300)
 x_test<-x_test+10*log10(450/test$totalLength)
 x_test<-exp(x_test/10)
