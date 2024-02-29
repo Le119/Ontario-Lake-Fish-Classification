@@ -48,6 +48,7 @@ dummy_y_test <- to_categorical(test$y, num_classes = 2)
 metadata_train <- train %>% select(Angle_minor_axis, Angle_major_axis, aspectAngle) %>% as.matrix()
 metadata_test <- test %>% select(Angle_minor_axis, Angle_major_axis, aspectAngle) %>% as.matrix()
 
+x_train <- train %>% select(52:300)
 xmean<-attributes(x_train)$`scaled:center`
 xsd<-attributes(x_train)$`scaled:scale`
 
