@@ -110,9 +110,7 @@ x <- input_cnn %>%
 # Combine ResNet output with metadata
 combined <- layer_concatenate(list(x, input_meta)) %>%
   layer_dense(units = 64, activation = 'relu') %>%
-  layer_dropout(rate = 0.5) %>%
   layer_dense(units = 32, activation = 'relu') %>%
-  layer_dropout(rate = 0.5) %>%
   layer_dense(units = 16, activation = 'relu')
 
 output <- combined %>%
@@ -131,7 +129,7 @@ cnn_history <- model %>% fit(
   list(x_train, metadata_train), dummy_y_train,
   batch_size = 1000,
   epochs = 100,
-  validation_split = 0.4
+  validation_split = 0.3
 )
 
 # Evaluate and predict with metadata
