@@ -1,0 +1,297 @@
+---
+title: "RNN using regions"
+author: "Alice Zhang"
+date: '2024-02-26'
+output: html_document
+---
+
+```{r, warning=FALSE, message=FALSE}
+load("processed_AnalysisData_no200.Rdata")
+# ls()
+# libraries
+library(dplyr)
+library(tidyr)
+library(str2str)
+library(keras) # for deep learning
+library(caret) # machine learning utility functions
+library(lubridate)
+library(tidymodels)
+library(vip)
+library(rBayesianOptimization)
+library(tensorflow)
+library(tidyverse) # general utility functions
+```
+
+## Processing data (removing things)
+```{r}
+# make the name easier to type
+processed_data<-processed_data_no200 
+
+# look at structures of individual fish
+processed_data%>%group_by(spCode,fishNum)%>%count()
+
+# remove individuals with missing transducers
+processed_data <-processed_data %>%filter(is.na(F100)==F)
+
+# also remove individual LWF23018 (only two pings)
+processed_data <-processed_data %>%filter(fishNum!="LWF23018")
+
+# remove the individual with -9x10^38 TS
+processed_data <-processed_data[-36830,]
+
+# LT019 and LT23008 were dead the whole time. Remove.
+processed_data <-processed_data %>%filter(fishNum!="LT019")
+processed_data <-processed_data %>%filter(fishNum!="LT23008")
+
+## Cleaned data:
+# processed_data %>%filter(spCode==81)%>%group_by(fischNum)%>%count()
+
+## only keep LT (81), and SMB (316)
+processed_data<-processed_data%>%filter(spCode == "81"|spCode == "316") # filter out spCode 102, 91
+## or also this option of doing it:
+# processed_data<-processed_data_no200%>%filter(spCode == "81" |spCode == "91"|spCode == "316")
+# processed_data$species<-ifelse(processed_data$spCode==316, "SMB", "LT")
+
+# remove frequencies 
+processed_data <-processed_data %>%select(-F90)
+processed_data <-processed_data %>%select(-F90.5)
+```
+
+## filter out regions with less than 5 pings
+```{r}
+num_pings_each_reg = aggregate(data.frame(count = processed_data$Region_name),
+                               list(value = processed_data$Region_name), length)
+reg_remove = num_pings_each_reg$value[which(num_pings_each_reg$count < 5)]
+
+for (i in 1:length(reg_remove)){
+  name = reg_remove[i]
+  processed_data = processed_data %>%filter(Region_name != name)
+}
+
+processed_data$species<-ifelse(processed_data$spCode==316, "SMB", "LT")
+```
+
+# Training/Test Sets
+```{r}
+set.seed(73)
+# unique(processed_data$species)
+# split out training and validate/test sets
+split<-group_initial_split(processed_data,group=fishNum, prop=0.7)
+train<-training(split)
+val_test<-testing(split)
+
+# split out validate and test sets
+split2<-group_initial_split(val_test,group=fishNum, prop=0.5)
+validate<-training(split2)
+test<-testing(split2)
+
+train%>%group_by(species)%>%count()
+validate%>%group_by(species)%>%count()
+test%>%group_by(species)%>%count()
+```
+
+```{r}
+train = train%>%  
+  group_by(Region_name)%>%
+  mutate(grp=rep(1:ceiling(n()/5), each=5, length.out=n()))%>%ungroup()
+
+listgrps_train<-train%>%group_split(Region_name,grp)
+listgrps_train<-listgrps_train[sapply(listgrps_train, nrow) >= 5]
+```
+
+### x data
+```{r}
+# Selecting the x data
+x_data_train<-list()
+
+for(i in 1:length(listgrps_train)){
+  x_data_train[[i]]<-listgrps_train[[i]]%>%select(F45:F170)
+}
+
+# each dataframe in the list to a matrix
+x_data_train<-lapply(x_data_train, as.matrix)
+
+# Flatten into a 3D array
+x_data_train<-lm2a(x_data_train,dim.order=c(3,1,2))
+
+# Check dims
+# should be n matrices of dimension 5*#freq
+dim(x_data_train)
+```
+
+### y data
+```{r}
+# Selecting the y data
+y_data_train<-vector()
+
+for(i in 1:length(listgrps_train)){
+a <-listgrps_train[[i]]%>%select(species)
+y_data_train[i]<-a[1,]
+}
+
+# Unlist
+y_data_train<-unlist(y_data_train)
+
+# Balance the classes
+summary(factor(y_data_train))
+
+# Balance the classes
+summary(factor(y_data_train)) # right now SMB have the least, is 313 in this case
+leastnum = summary(factor(y_data_train))["SMB"] # should change SMB to other if another has least num of data point
+```
+
+```{r}
+set.seed(5)
+rem<-sample(c(rep(0,1493),rep(1,1776)),3269)
+rem2<-rep(1,1776)
+remove<-which(c(rem, rem2)==0)
+x_data_train<-x_data_train[-c(remove),,]
+y_data_train<-y_data_train[-remove]
+
+y_train<-NA
+y_train[y_data_train=="LT"]<-0
+y_train[y_data_train=="SMB"]<-1
+summary(y_train)
+dummy_y_train<-to_categorical(y_train, num_classes = 2)
+
+# Shuffle data
+set.seed(250)
+x<-sample(1:nrow(x_data_train))
+x_data_train_S= x_data_train[x, ,] 
+dummy_y_train_S= dummy_y_train[x, ] 
+
+summary(as.factor(y_data_train))
+```
+
+```{r}
+validate = validate%>%  
+  group_by(Region_name)%>%
+  mutate(grp=rep(1:ceiling(n()/5), each=5, length.out=n()))%>%ungroup()
+
+listgrps_validate<-validate%>%group_split(Region_name,grp)
+listgrps_validate<-listgrps_validate[sapply(listgrps_validate, nrow) >= 5]
+```
+
+```{r}
+## Selecting the x data
+x_data_validate<-list()
+
+for(i in 1:length(listgrps_validate)){
+  x_data_validate[[i]]<-listgrps_validate[[i]]%>%select(F45:F170)
+}
+
+# each dataframe in the list to a matrix
+x_data_validate<-lapply(x_data_validate, as.matrix)
+
+# Flatten into a 3D array
+x_data_validate<-lm2a(x_data_validate,dim.order=c(3,1,2))
+
+# Check dims
+dim(x_data_validate)
+```
+
+```{r}
+## Selecting the y data
+y_data_validate<-vector()
+
+for(i in 1:length(listgrps_validate)){
+  a <-listgrps_validate[[i]]%>%select(species)
+  y_data_validate[i]<-a[1,]
+}
+
+# Unlist
+y_data_validate<-unlist(y_data_validate)
+
+# Balance the classes
+summary(factor(y_data_validate)) #need 62 
+
+set.seed(5)
+rem<-sample(c(rep(0,474),rep(1,262)),736)
+rem2<-rep(1,262) # SMB kept the same so no sampling for removal
+remove<-which(c(rem,rem2)==0)
+x_data_validate<-x_data_validate[-c(remove),,]
+y_data_validate<-y_data_validate[-remove]
+
+y_validate<-NA
+y_validate[y_data_validate=="LT"]<-0
+y_validate[y_data_validate=="SMB"]<-1
+summary(y_validate)
+
+dummy_y_validate<-to_categorical(y_validate, num_classes = 2)
+
+# Shuffle data
+set.seed(250)
+x<-sample(1:nrow(x_data_validate))
+x_data_validate_S= x_data_validate[x, ,] 
+dummy_y_validate_S= dummy_y_validate[x, ] 
+
+summary(as.factor(y_data_validate))
+```
+
+```{r}
+test = test%>%  
+  group_by(Region_name)%>%
+  mutate(grp=rep(1:ceiling(n()/5), each=5, length.out=n()))%>%ungroup()
+
+listgrps_test<-test%>%group_split(Region_name,grp)
+listgrps_test<-listgrps_test[sapply(listgrps_test, nrow) >= 5]
+```
+
+```{r}
+## Selecting the x data
+x_data_test<-list()
+
+for(i in 1:length(listgrps_test)){
+  x_data_test[[i]]<-listgrps_test[[i]]%>%select(F45:F170)
+}
+
+# each dataframe in the list to a matrix
+x_data_test<-lapply(x_data_test, as.matrix)
+
+# Flatten into a 3D array
+x_data_test<-lm2a(x_data_test,dim.order=c(3,1,2))
+
+# Check dims
+dim(x_data_test)
+```
+
+```{r}
+## Selecting the y data
+y_data_test<-vector()
+
+for(i in 1:length(listgrps_test)){
+  a <-listgrps_test[[i]]%>%select(species)
+  y_data_test[i]<-a[1,]
+}
+
+# Unlist
+y_data_test<-unlist(y_data_test)
+
+# Balance the classes
+summary(factor(y_data_test))
+```
+
+```{r}
+set.seed(5)
+rem<-sample(c(rep(0,355),rep(1,366)),721)
+rem2<-rep(1,366)
+remove<-which(c(rem,rem2)==0)
+x_data_test<-x_data_test[-c(remove),,]
+y_data_test<-y_data_test[-remove]
+
+
+y_test<-NA
+y_test[y_data_test=="LT"]<-0
+y_test[y_data_test=="SMB"]<-1
+summary(y_test)
+dummy_y_test<-to_categorical(y_test, num_classes = 2)
+
+# Shuffle data
+set.seed(250)
+x<-sample(1:nrow(x_data_test))
+x_data_test_S= x_data_test[x, ,] 
+dummy_y_test_S= dummy_y_test[x, ] 
+
+summary(as.factor(y_data_test))
+```
+
