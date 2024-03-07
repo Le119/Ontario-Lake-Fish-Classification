@@ -43,10 +43,13 @@ train$y <- ifelse(train$species == "LT", 0, 1)
 dummy_y_train <- to_categorical(train$y, num_classes = 2)
 test$y <- ifelse(test$species == "LT", 0, 1)
 dummy_y_test <- to_categorical(test$y, num_classes = 2)
+validate$y <- ifelse(validate$species == "LT", 0, 1)
+dummy_y_val <- to_categorical(validate$y, num_classes = 2)
 
 # Prepare the metadata for input
 metadata_train <- train %>% select(Angle_minor_axis, Angle_major_axis, aspectAngle) %>% as.matrix()
 metadata_test <- test %>% select(Angle_minor_axis, Angle_major_axis, aspectAngle) %>% as.matrix()
+metadata_val <- validate %>% select(Angle_minor_axis, Angle_major_axis, aspectAngle) %>% as.matrix()
 
 x_train <- train %>% select(52:300)
 x_train<-x_train+10*log10(450/train$totalLength)
@@ -61,12 +64,41 @@ x_test<-exp(x_test/10)
 x_test<-x_test%>%scale(xmean,xsd)
 x_test<-as.matrix(x_test)
 
+x_val <- validate %>% select(52:300)
+x_val<-x_val+10*log10(450/validate$totalLength)
+x_val<-exp(x_val/10)
+x_val<-x_val%>%scale(xmean,xsd)
+x_val<-as.matrix(x_val)
+
+#metadata_train <- metadata_train %>% select(52:300)
+metadata_train<-metadata_train+10*log10(450/test$totalLength)
+metadata_train<-exp(metadata_train/10)
+metadata_train<-as.matrix(metadata_train)
+metamean<-attributes(metadata_train)$`scaled:center`
+metasd<-attributes(metadata_train)$`scaled:scale`
+
+metadata_test<-metadata_test+10*log10(450/test$totalLength)
+metadata_test<-exp(metadata_test/10)
+metadata_test<-metadata_test%>%scale(metamean,metasd)
+metadata_test<-as.matrix(metadata_test)
+
+metadata_val<-metadata_val+10*log10(450/test$totalLength)
+metadata_val<-exp(metadata_val/10)
+metadata_val<-metadata_val%>%scale(metamean,metasd)
+metadata_val<-as.matrix(metadata_val)
+
 # Shuffle training data
 set.seed(250)
 train_indices <- sample(1:nrow(x_train))
 x_train <- x_train[train_indices, ] 
 metadata_train <- metadata_train[train_indices, ]
 dummy_y_train <- dummy_y_train[train_indices, ] 
+
+set.seed(250)
+val_indices <- sample(1:nrow(x_val))
+x_val <- x_val[val_indices, ] 
+metadata_val <- metadata_val[val_indices, ]
+dummy_y_val <- dummy_y_val[test_indices, ]
 
 set.seed(250)
 test_indices <- sample(1:nrow(x_test))
@@ -109,16 +141,16 @@ x <- input_cnn %>%
 
 # Combine ResNet output with metadata
 combined <- layer_concatenate(list(x, input_meta)) %>%
-  layer_dense(units = 64, activation = 'relu') %>%
-  layer_dropout(rate = 0.5) %>%
-  layer_dense(units = 32, activation = 'relu') %>%
-  layer_dropout(rate = 0.5) %>%
-  layer_dense(units = 16, activation = 'relu')
+  layer_dense(units = 1024, activation = 'relu') %>%
+  layer_dense(units = 1024, activation = 'relu') %>%
+  layer_dense(units = 1024, activation = 'relu')
 
 output <- combined %>%
   layer_dense(units = 2, activation = 'sigmoid')
 
 model <- keras_model(inputs = list(input_cnn, input_meta), outputs = output)
+
+summary(model)
 
 model %>% compile(
   loss = loss_categorical_crossentropy,
@@ -131,7 +163,7 @@ cnn_history <- model %>% fit(
   list(x_train, metadata_train), dummy_y_train,
   batch_size = 1000,
   epochs = 100,
-  validation_split = 0.3
+  validation_data = list(x_val, metadata_val) ####
 )
 
 # Evaluate and predict with metadata
