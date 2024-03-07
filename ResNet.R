@@ -110,7 +110,9 @@ x <- input_cnn %>%
 # Combine ResNet output with metadata
 combined <- layer_concatenate(list(x, input_meta)) %>%
   layer_dense(units = 64, activation = 'relu') %>%
+  layer_dropout(rate = 0.5) %>%
   layer_dense(units = 32, activation = 'relu') %>%
+  layer_dropout(rate = 0.5) %>%
   layer_dense(units = 16, activation = 'relu')
 
 output <- combined %>%
