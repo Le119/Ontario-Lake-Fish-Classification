@@ -70,22 +70,7 @@ x_val<-exp(x_val/10)
 x_val<-x_val%>%scale(xmean,xsd)
 x_val<-as.matrix(x_val)
 
-#metadata_train <- metadata_train %>% select(52:300)
-metadata_train<-metadata_train+10*log10(450/test$totalLength)
-metadata_train<-exp(metadata_train/10)
-metadata_train<-as.matrix(metadata_train)
-metamean<-attributes(metadata_train)$`scaled:center`
-metasd<-attributes(metadata_train)$`scaled:scale`
 
-metadata_test<-metadata_test+10*log10(450/test$totalLength)
-metadata_test<-exp(metadata_test/10)
-metadata_test<-metadata_test%>%scale(metamean,metasd)
-metadata_test<-as.matrix(metadata_test)
-
-metadata_val<-metadata_val+10*log10(450/test$totalLength)
-metadata_val<-exp(metadata_val/10)
-metadata_val<-metadata_val%>%scale(metamean,metasd)
-metadata_val<-as.matrix(metadata_val)
 
 # Shuffle training data
 set.seed(250)
@@ -98,7 +83,7 @@ set.seed(250)
 val_indices <- sample(1:nrow(x_val))
 x_val <- x_val[val_indices, ] 
 metadata_val <- metadata_val[val_indices, ]
-dummy_y_val <- dummy_y_val[test_indices, ]
+dummy_y_val <- dummy_y_val[val_indices, ]
 
 set.seed(250)
 test_indices <- sample(1:nrow(x_test))
