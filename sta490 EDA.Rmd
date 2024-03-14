@@ -255,7 +255,7 @@ for(num in unique(fish1$fishNum)) {
   }
 }
 library(dbplyr)
-ping<- fish1%>%
+ping <- fish1%>%
   select(pingNumber, fishNum)%>%
   group_by(fishNum)
 ping
