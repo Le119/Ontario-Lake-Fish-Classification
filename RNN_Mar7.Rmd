@@ -246,6 +246,164 @@ dummy_y_validate_S= dummy_y_validate[x, ]
 ```
 
 # Model Optimization
+## Model structure (to test optimizing parameter)
+```{r}
+# set_random_seed(490)
+# rnn = keras_model_sequential() # initialize model
+# ## our input layer
+# rnn %>%
+#   layer_lstm(input_shape=c(5,249), units = 249, activation = "relu", 
+#              return_sequences = TRUE) %>%
+#   # rnn layer, input_shape = # timepoints, units can > frequencies
+#   layer_lstm(units = 200, activation = "relu") %>%
+#   layer_dense(units = 130, activation = "relu", activity_regularizer =  regularizer_l2(0.01)) %>%
+#   layer_dropout(rate = 0.25) %>%
+#   layer_dense(units = 60, activation = "relu", activity_regularizer =  regularizer_l2(0.01)) %>%
+#   layer_dropout(rate = 0.25) %>%
+#   layer_dense(units = 15, activation = "relu", activity_regularizer =  regularizer_l2(0.01)) %>%
+#   layer_dropout(rate = 0.25) %>%
+#   layer_dense(units = 2, activation = 'sigmoid')
+# # look at our model architecture
+# summary(rnn)
+# rnn %>% compile(
+#   loss = loss_binary_crossentropy,
+#   optimizer = optimizer_adam(),
+#   metrics = c('accuracy', tf$keras$metrics$AUC())
+# )
+# 
+# # will go through all and keep the optimal value through restore_best_weights
+# # patience = how long it run until find optimal
+# callbacks <- list(callback_early_stopping(monitor = "val_loss",patience = 25,min_delta=0.01,restore_best_weights = T))
+# 
+# history <- rnn %>% fit(
+#   x_data_train_S, dummy_y_train_S,
+#   batch_size = 1000,# need to be optimized
+#   epochs = 5, # need to be increased
+#   validation_data = list(x_data_validate_S,dummy_y_validate_S),
+#   callbacks = callbacks,
+#   class_weight = list("0"=1,"1"=2)) # deal with unbalanced data set
+# 
+# # plot(history)
+# evaluate(rnn, x_data_test, dummy_y_test) 
+# # l1= 0.005, l2= 0.005 = 0.70 
+# # now try add in some drop out. 
+# 
+# preds<-predict(rnn, x=x_data_test)
+# 
+# species.predictions<-apply(preds,1,which.max)
+# species.predictions<-as.factor(ifelse(species.predictions == 1, "LT",
+#                                       "SMB"))
+# confusionMatrix(species.predictions,as.factor(y_data_test))
+```
+
+## one hidden layer opt ------------------------
+Bayesian optimization, run the model 50 times, optimizing units and neurons
+Try different regularization L1, L2
+```{r}
+# ## to run over and over again, build, compile, run history
+keras_fit <- function(units1,neuron1){
+  set_random_seed(15)
+  model <- keras_model_sequential()
+  model %>%
+    layer_lstm(input_shape=c(5,249),units = units1,activation = "relu",
+               return_sequences = TRUE) %>%
+    layer_dense(units=neuron1,
+                activation = "relu", # new regularization -alice
+                activity_regularizer = regularizer_l2(0.0001))%>%
+    layer_dense(units = 2, activation = 'sigmoid')
+
+
+  model %>% compile(
+    loss = loss_binary_crossentropy,
+    optimizer = optimizer_adam(),
+    metrics = c('accuracy', tf$keras$metrics$AUC())
+  )
+
+  callbacks <- list(callback_early_stopping(monitor = "val_loss",patience = 25,min_delta=0.001,restore_best_weights = T))
+
+  history <- model %>% fit(
+    x_data_train_S, dummy_y_train_S,
+    batch_size = 1000,
+    epochs = 5,
+    validation_data = list(x_data_validate_S,dummy_y_validate_S),
+    callbacks = callbacks,
+    class_weight = list("0"=1,"1"=2))
+
+
+  result <- list(Score = max(history$metrics[[6]]), # optimize negative validation loss
+                 Pred = 0)
+
+  return(result)
+
+}
+```
+
+# Parameter optimization together with bayesian optimization
+```{r}
+# do this for any parameter you want to optimize
+search_bound_keras <- list(units1=c(2L,500L),
+                           neuron1=c(2L,500L))
+
+# the more parameter you want to optimize the more
+search_grid_keras <- data.frame(units1=floor(runif(5,2,500)),
+                                neuron1=floor(runif(5,2,500)))
+
+head(search_grid_keras)
+```
+
+```{r}
+bayes_opt_rnn <- 
+  rBayesianOptimization::BayesianOptimization(FUN = keras_fit, 
+                                              bounds = search_bound_keras, 
+                                              init_points = 0, 
+                                              init_grid_dt = search_grid_keras , 
+                                              n_iter = 5, acq = "ucb")
+# n_iter = how many times you run bayesoptim, 10 is too much
+# acq = "ei
+
+ggplot()+
+  geom_point(data=bayes_opt_rnn$History,aes(x=neuron1,y=units1,col=Value))
+
+## Pulling the best parameter from the Bayesian optimization
+set_random_seed(490)
+model <- keras_model_sequential()
+model %>%
+  layer_lstm(input_shape=c(5,249),units = bayes_opt_rnn$Best_Par[1],
+             activation = "relu",return_sequences = TRUE) %>%
+  layer_lstm(units = bayes_opt_rnn$Best_Par[2], activation = "relu") %>% # new layer -alice
+  layer_dense(units=bayes_opt_rnn$Best_Par[3],
+              activation = "relu", # new regularization -alice
+              activity_regularizer =  regularizer_l2(bayes_opt_rnn$Best_Par[4])) %>%
+  layer_dense(units = 2, activation = 'sigmoid')
+
+model %>% compile(
+  loss = loss_binary_crossentropy,
+  optimizer = optimizer_adam(),
+  metrics = c('accuracy',tf$keras$metrics$AUC())
+)
+callbacks <- list(callback_early_stopping(monitor = "val_loss",patience = 25,min_delta=0.001,restore_best_weights = T))
+
+history <- model %>% fit(
+  x_data_train_S, dummy_y_train_S,
+  batch_size = 1000, # need to be optimized
+  epochs = 5, # need increase, 5 just testing
+  validation_data = list(x_data_validate_S,dummy_y_validate_S),
+  callbacks = callbacks,
+  class_weight = list("0"=1,"1"=2))
+
+
+
+plot(history)
+evaluate(model, x_data_test, dummy_y_test)
+
+preds<-predict(model, x=x_data_test)
+
+species.predictions<-apply(preds,1,which.max)
+species.predictions<-as.factor(ifelse(species.predictions == 1, "LT",
+                                      "SMB"))
+confusionMatrix(species.predictions,as.factor(y_data_test))
+```
+
 ```{r}
 
 ```
