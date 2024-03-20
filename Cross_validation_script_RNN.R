@@ -210,10 +210,10 @@ for(fold in 1:5){
   rnn = keras_model_sequential() # initialize model
   # our input layer
   rnn %>%
-    layer_lstm(input_shape=c(5,249),units = lstmunits[i]) %>%
+    layer_lstm(input_shape=c(5,249),units = grid.search.subset$lstmunits[i]) %>%
     layer_activation_leaky_relu()%>%
     layer_batch_normalization()%>%
-    layer_dense(units=neuron1[i],activity_regularizer = regularizer_l2(regrate[i]))%>%
+    layer_dense(units = grid.search.subset$neuron1[i],activity_regularizer = regularizer_l2(l=grid.search.subset$regrate[i])) %>%
     layer_activation_leaky_relu()%>%
     layer_dense(units = 2, activation = 'sigmoid')
   
