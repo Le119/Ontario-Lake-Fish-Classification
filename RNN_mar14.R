@@ -230,7 +230,7 @@ dummy_y_validate_S= dummy_y_validate[x, ]
 
 
 # -----------------------Model Fit Structure-----------------------
-set_random_seed(490)
+set_random_seed(8)
 rnn = keras_model_sequential() # initialize model
 ## our input layer
 rnn %>%
@@ -290,12 +290,16 @@ confusionMatrix(species.predictions,as.factor(y_data_test))
 
 
 # to run over and over again, build, compile, run history
-keras_fit <- function(units1,neuron1){
+keras_fit <- function(units1,neuron1,neuron2){
+  #,neuron3,neuron4
   set_random_seed(15)
   model <- keras_model_sequential()
   model %>%
     layer_lstm(input_shape=c(5,249),units = units1,activation = "relu") %>%
-    layer_dense(units=neuron1)%>%
+    layer_dense(units=neuron1,activation = "relu")%>%
+    layer_dense(units=neuron2,activation = "relu")%>%
+    # layer_dense(units=neuron3,activation = "relu")%>%
+    # layer_dense(units=neuron4,activation = "relu")%>%
     layer_dense(units = 2, activation = 'sigmoid') 
   
   
@@ -310,7 +314,7 @@ keras_fit <- function(units1,neuron1){
   history <- model %>% fit(
     x_data_train_S, dummy_y_train_S,
     batch_size = 1000, 
-    epochs = 300,
+    epochs = 300, # change to higher, e.g. 300
     validation_data = list(x_data_validate_S,dummy_y_validate_S),
     callbacks = callbacks,
     class_weight = list("0"=1,"1"=2))
@@ -325,28 +329,42 @@ keras_fit <- function(units1,neuron1){
 
 # do this for any parameter you want to optimize
 search_bound_keras <- list(units1=c(2L,500L),
-                           neuron1=c(2L,500L))
+                           neuron1=c(249L,500L),
+                           neuron2=c(2L,249L))
+# ,
+# neuron2=c(2L,500L),
+# neuron3=c(2L,500L),
+# neuron4=c(2L,500L)
 
 # the more parameter you want to optimize the more...
 search_grid_keras <- data.frame(units1=floor(runif(5,2,500)),
-                                neuron1=floor(runif(5,2,500)))
+                                neuron1=floor(runif(5,249,500)),
+                                neuron2=floor(runif(5,2,249)))
+# ,
+# neuron2=floor(runif(5,2,500)),
+# neuron3=floor(runif(5,2,500)),
+# neuron4=floor(runif(5,2,500))
 head(search_grid_keras)
 
 
-bayes_opt_rnn <- rBayesianOptimization::BayesianOptimization(FUN = keras_fit, bounds = search_bound_keras, init_points = 0, init_grid_dt = search_grid_keras, n_iter = 10, acq = "ucb")
+bayes_opt_rnn <- rBayesianOptimization::BayesianOptimization(FUN = keras_fit, bounds = search_bound_keras, init_points = 0, init_grid_dt = search_grid_keras, n_iter = 5, acq = "ucb")
 # n_iter = how many times you run bayesoptim, 10 is too much
 # acq = "ei
 
 
-ggplot()+
-  geom_point(data=bayes_opt_rnn$History,aes(x=neuron1,y=units1,col=Value))
+# ggplot()+
+#   geom_point(data=bayes_opt_rnn$History,aes(x=neuron1,y=units1,col=Value))
 
 # Pulling the best parameter from the Bayesian optimization
 set_random_seed(15)
 model <- keras_model_sequential()
 model %>%
-  layer_lstm(input_shape=c(5,249),units = bayes_opt_rnn$Best_Par[1],activation = "relu") %>%
-  layer_dense(units=bayes_opt_rnn$Best_Par[2])%>%
+  layer_lstm(input_shape=c(5,249),units = bayes_opt_rnn$Best_Par[1],
+             activation = "relu") %>%
+  layer_dense(units=bayes_opt_rnn$Best_Par[2],activation = "relu")%>%
+  layer_dense(units=bayes_opt_rnn$Best_Par[3],activation = "relu")%>%
+  # layer_dense(units=bayes_opt_rnn$Best_Par[4],activation = "relu")%>%
+  # layer_dense(units=bayes_opt_rnn$Best_Par[5],activation = "relu")%>%
   layer_dense(units = 2, activation = 'sigmoid') 
 
 model %>% compile(
@@ -359,7 +377,7 @@ callbacks <- list(callback_early_stopping(monitor = "val_loss",patience = 25,min
 history <- model %>% fit(
   x_data_train_S, dummy_y_train_S,
   batch_size = 1000, # need to be optimized
-  epochs = 5, # need increase, 5 just testing, maybe 300
+  epochs = 300, # need increase, 5 just testing, maybe 300
   validation_data = list(x_data_validate_S,dummy_y_validate_S),
   callbacks = callbacks,
   class_weight = list("0"=1,"1"=2))
@@ -376,3 +394,11 @@ species.predictions<-as.factor(ifelse(species.predictions == 1, "LT",
                                       "SMB"))
 confusionMatrix(species.predictions,as.factor(y_data_test))
 # units = 224 neuron 1 = 249; balanced acc = 0.70; AUC = 0.826
+
+# units=459 neuron1=500 acc=0.7212714 auc=0.7486744
+# +activation_regularizer_l2: units=411 neuron1=10 reg1=0.1 acc=0.7057865 AUC=0.7288269
+# +1dense_layer: units=479 neuron1=379 neuron2=325 acc=0.7057865 auc=0.7411598
+# +2dense_layer: units=2 neuron1=466 neuron2=197 neuron3=129 acc=0.7131214 auc=0.7367606
+# 0.7082314 0.7341782 (decreasing output dim in each layer)
+# 0.7090465 0.7330543 (found neuron1, units1 first)
+# +3dense_layer: units=184 neuron1=416 neuron2=431 neuron3=388 acc=0.7098615 0.7414647 
