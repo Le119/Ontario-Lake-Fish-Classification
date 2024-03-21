@@ -122,7 +122,7 @@ y_train<-NA
 y_train[y_data_train=="LT"]<-0
 y_train[y_data_train=="SMB"]<-1
 summary(y_train)
-dummy_y_train<-to_categorical(y_train, num_classes = 2)
+dummy_y_train<-to_categorical(y_train, num_classes = 2) # two col of 0,1 indicating LT, SMB
 dim(dummy_y_train)
 
 
@@ -153,7 +153,7 @@ dim(x_data_test)
 # Selecting the y data
 y_data_test<-vector()
 
-for(i in 1:684){
+for(i in 1:dim(x_data_test)[1]){
   a <-listgrps_test[[i]]%>%select(species)
   y_data_test[i]<-a[1,]
 }
@@ -210,6 +210,7 @@ for(i in 1:20){ # subset of the different parameter that was randomly selected
     x_val_set<-x_data_train_S[x_data_train_S[,1,250] == fold,,1:249]
     y_val_set<-dummy_y_train_S[dummy_y_train_S[,3]==fold,1:2]
     
+    # class weight: to compensate for the problem that LT SMB not balanced
     cw<-summary(as.factor(y_train_set[,1]))[2]/summary(as.factor(y_train_set[,1]))[1]
     
     set_random_seed(15)
@@ -257,10 +258,10 @@ lowest_val_loss=which(val_loss==min(val_loss),arr.ind = T) # name so can call on
 # best_epoch[5,4]
 # the overall lowest validation loss was 0.418, but it occurred in epoch 29/30, i.e. the model could have improved more.
 
-val_loss[lowest_val_loss[1],4] # row num must be what was outputed from prev line finding the lowest val loss
+val_loss[lowest_val_loss[1],4] # row num must be what was outputted from prev line that finds the lowest val loss
 best_epoch[lowest_val_loss[1],4]
 
-# best mean val loss
+# find best mean val loss
 which(rowMeans(val_loss)==min(rowMeans(val_loss)))
 best_mean_val_loss=which(rowMeans(val_loss)==min(rowMeans(val_loss)))
 mean(val_loss[best_mean_val_loss[1],])
@@ -270,3 +271,58 @@ best_epoch[best_mean_val_loss[1],]
 
 # Link to upload results
 # https://utoronto-my.sharepoint.com/:x:/g/personal/jessica_leivesley_utoronto_ca/EW_I626HN9dNvLk8iUoEPRkBxKyMVkkLUD_wwHSU7kqkag?e=P51CZi
+
+
+## Best parameter testing ##
+# extract the parameters that gave the lowest mean val loss
+best_param=tibble(regrate=1e-5,droprate=0.1,lstmunits=128,neuron1=256,neuron2=8)
+
+# on testing set
+for(fold in 1:5){ # cross-fold validation
+  x_train_set<-x_data_train_S[x_data_train_S[,1,250] != fold,,1:249]
+  y_train_set<-dummy_y_train_S[dummy_y_train_S[,3]!=fold,1:2]
+  
+  x_val_set<-x_data_train_S[x_data_train_S[,1,250] == fold,,1:249]
+  y_val_set<-dummy_y_train_S[dummy_y_train_S[,3]==fold,1:2]
+  
+  cw<-summary(as.factor(y_train_set[,1]))[2]/summary(as.factor(y_train_set[,1]))[1]
+  
+  set_random_seed(15)
+  rnn = keras_model_sequential() # initialize model
+  # our input layer
+  rnn %>%
+    layer_lstm(input_shape=c(5,249),units = best_param$lstmunits) %>%
+    layer_activation_leaky_relu()%>%
+    layer_batch_normalization()%>%
+    layer_dense(units = best_param$neuron1,activity_regularizer = regularizer_l2(l=best_param$regrate)) %>%
+    layer_activation_leaky_relu()%>%
+    layer_dropout(rate = best_param$droprate)%>%
+    layer_dense(units = best_param$neuron2,activity_regularizer = regularizer_l2(l=best_param$regrate)) %>%
+    layer_activation_leaky_relu()%>%
+    layer_dense(units = 2, activation = 'sigmoid')
+  
+  rnn %>% compile(
+    loss = loss_binary_crossentropy,
+    optimizer = optimizer_adam(3e-4),
+    metrics = c('accuracy')
+  )
+  
+  history <- rnn %>% fit(
+    x_train_set, y_train_set,
+    batch_size = 250, 
+    epochs = 30,
+    validation_data = list(x_val_set,y_val_set),
+    class_weight = list("0"=1,"1"=cw))
+  
+  print(fold) 
+}
+
+plot(history)
+evaluate(rnn, x_data_test, dummy_y_test) 
+
+preds<-predict(rnn, x=x_data_test)
+
+species.predictions<-apply(preds,1,which.max)
+species.predictions<-as.factor(ifelse(species.predictions == 1, "LT",
+                                      "SMB"))
+confusionMatrix(species.predictions,as.factor(y_data_test))
