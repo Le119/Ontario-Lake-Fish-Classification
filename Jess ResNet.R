@@ -88,40 +88,48 @@ dummy_y_val <- dummy_y_val[val_indices, ]
 input_shape <- c(249,1)
 set_random_seed(15)
 inputs <- layer_input(shape = input_shape)
-block_1_output <- inputs %>%
-  layer_conv_1d(filters = 16, kernel_size = 3, activation = "relu", padding = "same",strides = 1)
 
-block_2_output <- block_1_output %>%
-  layer_conv_1d(16, 3, activation = "relu", padding = "same") %>%
+block_1_output <- inputs %>%
+  layer_conv_1d(filters = 16, kernel_size = 3, activation = "relu", padding = "same", strides = 1)
+
+# Adjust block_2_output to include the first convolutional layer for block_2
+block_2_prep <- block_1_output %>%
+  layer_conv_1d(16, 3, activation = "relu", padding = "same")
+
+block_2_output <- block_2_prep %>%
   layer_conv_1d(16, 3, activation = "relu", padding = "same") %>%
   layer_add(block_1_output)
 
+# Introduce a skip from block_1_output to block_3_output
 block_3_output <- block_2_output %>%
   layer_conv_1d(16, 3, activation = "relu", padding = "same") %>%
   layer_conv_1d(16, 3, activation = "relu", padding = "same") %>%
-  layer_add(block_2_output)
+  layer_add(block_2_output) %>%
+  layer_add(block_1_output) # Adding block_1_output as a skip to block_3_output
 
+# Continue from block_3_output to block_4_output
 block_4_output <- block_3_output %>%
   layer_conv_1d(16, 3, activation = "relu", padding = "same") %>%
   layer_conv_1d(16, 3, activation = "relu", padding = "same") %>%
   layer_add(block_3_output)
 
+# Introduce a skip from block_3_output to block_5_output
 block_5_output <- block_4_output %>%
   layer_conv_1d(16, 3, activation = "relu", padding = "same") %>%
   layer_conv_1d(16, 3, activation = "relu", padding = "same") %>%
-  layer_add(block_4_output)
-
+  layer_add(block_4_output) %>%
+  layer_add(block_3_output) # Adding block_3_output as a skip to block_5_output
 
 outputs <- block_5_output %>%
   layer_conv_1d(16, 3, activation = "relu", padding = "same") %>%
   layer_conv_1d(16, 3, activation = "relu", padding = "same") %>%
   layer_max_pooling_1d(pool_size = 2) %>%
-  layer_flatten()%>%
+  layer_flatten() %>%
   layer_dense(2, activation="sigmoid")
 
 model <- keras_model(inputs, outputs)
 model
-plot(model,show_shapes = T)
+#plot(model,show_shapes = T)
 
 model %>% compile(
   optimizer = optimizer_adam(),
@@ -133,9 +141,14 @@ model %>% compile(
 resnet_history <- model %>% fit(
   x_train,dummy_y_train,
   batch_size = 1000,
-  epochs = 75,
+  epochs = 100,
   validation_data = list(x_validate, dummy_y_val)
 )
 
 plot(resnet_history)
 evaluate(model, (x_test), dummy_y_test)
+preds<-predict(model, x=x_test)
+
+species.predictions<-apply(preds,1,which.max)
+species.predictions<-as.factor(ifelse(species.predictions == 1, "LT", "SMB"))
+confusionMatrix(species.predictions,as.factor(test$species))
