@@ -45,6 +45,19 @@ train%>%group_by(species)%>%count()
 validate%>%group_by(species)%>%count()
 test%>%group_by(species)%>%count()
 
+# Shuffle data
+set.seed(250)
+train_indices <- sample(1:nrow(train))
+train <- train[train_indices, ] 
+
+set.seed(250)
+val_indices <- sample(1:nrow(validate))
+validate <- validate[val_indices, ] 
+
+set.seed(250)
+test_indices <- sample(1:nrow(test))
+test <- test[test_indices, ] 
+
 train$y <- ifelse(train$species == "LT", 0, 1)
 dummy_y_train <- to_categorical(train$y, num_classes = 2)
 test$y <- ifelse(test$species == "LT", 0, 1)
@@ -73,16 +86,9 @@ x_validate<-exp(x_validate/10)
 x_validate<-x_validate%>%scale(xmean,xsd)
 x_validate<-as.matrix(x_validate)
 
-# Shuffle training data
-set.seed(250)
-train_indices <- sample(1:nrow(x_train))
-x_train <- x_train[train_indices, ] 
-dummy_y_train <- dummy_y_train[train_indices, ] 
 
-set.seed(250)
-val_indices <- sample(1:nrow(x_validate))
-x_validate <- x_validate[val_indices, ] 
-dummy_y_val <- dummy_y_val[val_indices, ]
+
+
 
 
 input_shape <- c(249,1)
@@ -152,3 +158,4 @@ preds<-predict(model, x=x_test)
 species.predictions<-apply(preds,1,which.max)
 species.predictions<-as.factor(ifelse(species.predictions == 1, "LT", "SMB"))
 confusionMatrix(species.predictions,as.factor(test$species))
+
