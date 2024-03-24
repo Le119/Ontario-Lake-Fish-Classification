@@ -188,6 +188,7 @@ grid.search.subset<-grid.search.full[x,]
 
 val_loss<-matrix(nrow=20,ncol=5)
 best_epoch<-matrix(nrow=20,ncol=5)
+auc=matrix(nrow=20,ncol=5)
 
 for(i in 1:20){ # go through subset of the different parameter that was randomly selected
   for(fold in 1:5){ # cross-fold validation for each combination
@@ -215,7 +216,7 @@ for(i in 1:20){ # go through subset of the different parameter that was randomly
     rnn %>% compile(
       loss = loss_binary_crossentropy,
       optimizer = optimizer_adam(3e-4),
-      metrics = c('accuracy'))
+      metrics = c('accuracy', tf$keras$metrics$AUC()))
     
     history <- rnn %>% fit(
       x_train_set, y_train_set,
@@ -227,6 +228,7 @@ for(i in 1:20){ # go through subset of the different parameter that was randomly
     
     val_loss[i,fold]<-min(history$metrics$val_loss)
     best_epoch[i,fold]<-which(history$metrics$val_loss==min(history$metrics$val_loss))
+    auc[i,fold]=max(history$metrics$val_auc)
     
     print(i)
     print(fold) 
@@ -252,7 +254,7 @@ val_loss[best_mean_val_loss]
 best_epoch[best_mean_val_loss]
 
 # now fit the best model and evaluate test results (once for each fold)
-fold=5 # change this to 1,2,3,4,5
+fold=1 # change this to 1,2,3,4,5
 fold_index<-which(folds==fold)
 x_train_set<-x_train[-fold_index,,]
 y_train_set<-dummy_y_train[-fold_index,]
@@ -262,7 +264,7 @@ y_val_set<-dummy_y_train[fold_index,]
 
 # below need to be extracted and inputted as values so only need to change this line everytime we have new optimal values
 # 3 hidden layers would need additional neuron3 variable
-best_param=tibble(regrate=1e-5, droprate=0.1, lstmunits=256, neuron1=128, neuron2=16)
+best_param=tibble(regrate=1e-6, droprate=0.1, lstmunits=256, neuron1=128, neuron2=16)
 
 set_random_seed(15)
 rnn = keras_model_sequential() # initialize model
@@ -281,7 +283,7 @@ rnn %>%
 rnn %>% compile(
   loss = loss_binary_crossentropy,
   optimizer = optimizer_adam(3e-4),
-  metrics = c('accuracy'))
+  metrics = c('accuracy', tf$keras$metrics$AUC()))
 
 history <- rnn %>% fit(
   x_train_set, y_train_set,
