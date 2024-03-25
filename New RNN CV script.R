@@ -53,114 +53,125 @@ processed_data_TS$species<-processed_data$species
 processed_data_TS$Region<-processed_data$Region
 processed_data_TS$fishNum<-processed_data$fishNum
 
-# split into lake trout and bass datasets
-trout<-processed_data_TS%>%filter(species=="LT")
-
-trout<-trout%>%group_by(Region)%>%mutate(grp=rep(1:ceiling(n()/5), each=5, length.out=n()))%>%ungroup()
-head(trout$grp)
-
-# splitting into lists 
-listgrps_trout<-trout%>%group_split(Region,grp)
-
-# keeping only lists that are of length 5
-listgrps_trout<-listgrps_trout[sapply(listgrps_trout, nrow) >= 5]
-
-# Keeping only the frequency data
-listgrps_trout2<-map(listgrps_trout, ~ (.x %>% select(1:249)))
-
-# each dataframe in the list to a matrix
-x_trout<-lapply(listgrps_trout2, as.matrix)
-
-# Flatten into a 3D array
-x_trout<-lm2a(x_trout,dim.order=c(3,1,2))
-
-# Check dims
-dim(x_trout)
-
-# Create y data (0 if LT)
-y_trout<-rep(0,dim(x_trout)[1])
 
 # 10% of data in test set, rest in training set
-n_test<-floor(dim(x_trout)[1])/10
 set.seed(15)
-trout_test_index<-sample(1:n_test,replace = F)
+split<-group_initial_split(processed_data_TS,group=fishNum,strata = species, prop=0.9)
+train<-training(split)
+test<-testing(split)
 
-trout_test<-x_trout[c(trout_test_index),,]
-trout_train<-x_trout[-trout_test_index,,]
 
-y_trout_test<-y_trout[trout_test_index]
-y_trout_train<-y_trout[-trout_test_index]
+# Training Data
 
-set.seed(15)
-folds_trout<-sample(1:5,dim(trout_train)[1],replace=T)
-
-# bass
-bass<-processed_data_TS%>%filter(species=="SMB")
-
-bass<-bass%>%group_by(Region)%>%mutate(grp=rep(1:ceiling(n()/5), each=5, length.out=n()))%>%ungroup()
-head(bass$grp)
+# Creating a listing variable within each group so that we can split groups longer than 5 into groups of 5
+train_grps<-train%>%group_by(Region)%>%mutate(grp=rep(1:ceiling(n()/5), each=5, length.out=n()))%>%ungroup()
+head(train_grps)
 
 # splitting into lists 
-listgrps_bass<-bass%>%group_split(Region,grp)
+listgrps_train<-train_grps%>%group_split(Region,grp)
 
 # keeping only lists that are of length 5
-listgrps_bass<-listgrps_bass[sapply(listgrps_bass, nrow) >= 5]
+listgrps_train<-listgrps_train[sapply(listgrps_train, nrow) >= 5]
 
-# Keeping only the frequency data
-listgrps_bass2<-map(listgrps_bass, ~ (.x %>% select(1:249)))
+# select frequencies only
+listgrps_train2<-map(listgrps_train, ~ (.x %>% select(c(1:249))))
 
 # each dataframe in the list to a matrix
-x_bass<-lapply(listgrps_bass2, as.matrix)
+x_data_train<-lapply(listgrps_train2, as.matrix)
 
 # Flatten into a 3D array
-x_bass<-lm2a(x_bass,dim.order=c(3,1,2))
+x_data_train<-lm2a(x_data_train,dim.order=c(3,1,2))
 
 # Check dims
-dim(x_bass)
+dim(x_data_train)
 
-# Create y data (1 if LT)
-y_bass<-rep(1,dim(x_bass)[1])
+# Selecting the y data
+y_data_train<-vector()
 
-# 10% of data in test set, rest in training set
-n_test<-floor(dim(x_bass)[1])/10
-set.seed(15)
-bass_test_index<-sample(1:n_test,replace = F)
+for(i in 1:dim(x_data_train)[1]){
+  a <-listgrps_train[[i]]%>%select(species)
+  y_data_train[i]<-a[1,]
+}
 
-bass_test<-x_bass[c(bass_test_index),,]
-bass_train<-x_bass[-bass_test_index,,]
+# Unlist
+y_data_train<-unlist(y_data_train)
 
-y_bass_test<-y_bass[bass_test_index]
-y_bass_train<-y_bass[-bass_test_index]
-
-set.seed(15)
-folds_bass<-sample(1:5,dim(bass_train)[1],replace=T)
-
-# Join training dataset and shuffle
-x_train<-abind(trout_train,bass_train,along=1)
-dim(x_train)
-
-folds<-c(folds_trout,folds_bass)
-
-y_train<-c(y_trout_train,y_bass_train)
-
-set.seed(15)
-shuffle_index_train<-sample(1:dim(x_train)[1],dim(x_train)[1])
-x_train<-x_train[shuffle_index_train,,]
-folds<-folds[shuffle_index_train]
-y_train<-y_train[shuffle_index_train]
-
-# create dummy y variable
+# Dummy code this
+y_train<-NA
+y_train[y_data_train=="LT"]<-0
+y_train[y_data_train=="SMB"]<-1
+summary(y_train)
 dummy_y_train<-to_categorical(y_train, num_classes = 2)
 dim(dummy_y_train)
 
-# create test data
-x_test<-abind(trout_test,bass_test,along=1)
-dim(x_test)
-y_test<-c(y_trout_test,y_bass_test)
 
-# create dummy y variable
+
+## Getting fish ID so that it is not repeated across folds
+fishID_train<-vector()
+
+for(i in 1:dim(x_data_train)[1]){
+  a <-listgrps_train[[i]]%>%select(fishNum)
+  fishID_train[i]<-a[1,]
+}
+
+# Unlist
+fishID_train<-unlist(fishID_train)
+
+
+# Testing Data
+# Creating a listing variable within each group so that we can split groups longer than 5 into groups of 5
+test_grps<-test%>%group_by(Region)%>%mutate(grp=rep(1:ceiling(n()/5), each=5, length.out=n()))%>%ungroup()
+head(test_grps)
+
+# splitting into lists 
+listgrps_test<-test_grps%>%group_split(Region,grp)
+
+# keeping only lists that are of length 5
+listgrps_test<-listgrps_test[sapply(listgrps_test, nrow) >= 5]
+
+listgrps_test2<-map(listgrps_test, ~ (.x %>% select(c(1:249))))
+
+# each dataframe in the list to a matrix
+x_data_test<-lapply(listgrps_test2, as.matrix)
+
+# Flatten into a 3D array
+x_data_test<-lm2a(x_data_test,dim.order=c(3,1,2))
+
+# Check dims
+dim(x_data_test)
+
+# Selecting the y data
+y_data_test<-vector()
+
+for(i in 1:dim(x_data_test)[1]){
+  a <-listgrps_test[[i]]%>%select(species)
+  y_data_test[i]<-a[1,]
+}
+
+# Unlist
+y_data_test<-unlist(y_data_test)
+
+# Dummy code this
+y_test<-NA
+y_test[y_data_test=="LT"]<-0
+y_test[y_data_test=="SMB"]<-1
+summary(y_test)
 dummy_y_test<-to_categorical(y_test, num_classes = 2)
 dim(dummy_y_test)
+
+
+
+## shuffle data
+set.seed(15)
+shuffle_index_train<-sample(1:dim(x_data_train)[1],dim(x_data_train)[1])
+x_data_train<-x_data_train[shuffle_index_train,,]
+dummy_y_train<-dummy_y_train[shuffle_index_train,]
+fishID_train<-fishID_train[shuffle_index_train]
+
+
+#K fold validation, but with no repeat of fish across
+set.seed(15)
+folds<-groupKFold(fishID_train,k=5)
 
 # create grid of parameter space we want to search
 regrate<-c(1e-6,1e-5,1e-4)
@@ -176,16 +187,17 @@ x<-sample(1:45,20,replace=F)
 grid.search.subset<-grid.search.full[x,]
 
 val_loss<-matrix(nrow=20,ncol=5)
-best_epoch<-matrix(nrow=20,ncol=5)
+best_epoch_loss<-matrix(nrow=20,ncol=5)
+val_auc<-matrix(nrow=20,ncol=5)
+best_epoch_auc<-matrix(nrow=20,ncol=5)
 
 for(i in 1:20){
-for(fold in 1:5){
-  fold_index<-which(folds==fold)
-  x_train_set<-x_train[-fold_index,,]
-  y_train_set<-dummy_y_train[-fold_index,]
+for(fold in 1:2){
+  x_train_set<-x_data_train[folds[[fold]],,]
+  y_train_set<-dummy_y_train[folds[[fold]],]
   
-  x_val_set<-x_train[fold_index,,]
-  y_val_set<-dummy_y_train[fold_index,]
+  x_val_set<-x_data_train[-folds[[fold]],,]
+  y_val_set<-dummy_y_train[-folds[[fold]],]
   
   set_random_seed(15)
   rnn = keras_model_sequential() # initialize model
@@ -201,19 +213,20 @@ for(fold in 1:5){
   rnn %>% compile(
     loss = loss_binary_crossentropy,
     optimizer = optimizer_adam(3e-4),
-    metrics = c('accuracy'))
+    metrics = c('accuracy', tf$keras$metrics$AUC()))
   
   history <- rnn %>% fit(
     x_train_set, y_train_set,
     batch_size = 1000, 
     epochs = 50,
     validation_data = list(x_val_set,y_val_set),
-    class_weight = list("0"=1,"1"=3))
+    class_weight = list("0"=1,"1"=2))
   
   
   val_loss[i,fold]<-min(history$metrics$val_loss)
-  best_epoch[i,fold]<-which(history$metrics$val_loss==min(history$metrics$val_loss))
-  
+  best_epoch_loss[i,fold]<-which(history$metrics$val_loss==min(history$metrics$val_loss))
+  val_auc[i,fold]<-max(history$metrics$val_auc)
+  best_epoch_auc[i,fold]<-which(history$metrics$val_auc==max(history$metrics$val_auc))
   print(i)
   print(fold) 
 }
@@ -221,12 +234,11 @@ for(fold in 1:5){
 
 # now fit the best model and evaluate test results (once for each fold)
 fold=1
-fold_index<-which(folds==fold)
-x_train_set<-x_train[-fold_index,,]
-y_train_set<-dummy_y_train[-fold_index,]
+x_train_set<-x_data_train[folds[[fold]],,]
+y_train_set<-dummy_y_train[folds[[fold]],]
 
-x_val_set<-x_train[fold_index,,]
-y_val_set<-dummy_y_train[fold_index,]
+x_val_set<-x_data_train[-folds[[fold]],,]
+y_val_set<-dummy_y_train[-folds[[fold]],]
 
 set_random_seed(15)
 rnn = keras_model_sequential() # initialize model
@@ -242,14 +254,14 @@ rnn %>%
 rnn %>% compile(
   loss = loss_binary_crossentropy,
   optimizer = optimizer_adam(3e-4),
-  metrics = c('accuracy'))
+  metrics = c('accuracy', tf$keras$metrics$AUC()))
 
 history <- rnn %>% fit(
   x_train_set, y_train_set,
   batch_size = 1000, 
   epochs = 50,
   validation_data = list(x_val_set,y_val_set),
-  class_weight = list("0"=1,"1"=3))
+  class_weight = list("0"=1,"1"=2))
 
 # evaluate performance on test data
 evaluate(rnn, x_test, dummy_y_test) 
