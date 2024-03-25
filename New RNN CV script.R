@@ -192,7 +192,7 @@ val_auc<-matrix(nrow=20,ncol=5)
 best_epoch_auc<-matrix(nrow=20,ncol=5)
 
 for(i in 1:20){
-for(fold in 1:2){
+for(fold in 1:5){
   x_train_set<-x_data_train[folds[[fold]],,]
   y_train_set<-dummy_y_train[folds[[fold]],]
   
