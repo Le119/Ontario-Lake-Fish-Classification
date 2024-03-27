@@ -180,15 +180,15 @@ folds<-groupKFold(fishID_train,k=5)
 # create grid of parameter space we want to search
 regrate<-c(1e-6,1e-5,1e-4)
 droprate=c(0,0.1,0.15)
-# droprate2=c(0,0.1,0.15) # only needed in 3 hidden layer if want different drop rates
+droprate2=c(0,0.1,0.15) # only needed in 3 hidden layer if want different drop rates
 lstmunits<-c(256,128,64)
 neuron1<-c(256,128,64)
 neuron2=c(64,32,16)
-# neuron3=c(16,8,4) # only needed in 3 hidden layers
+neuron3=c(16,8,4) # only needed in 3 hidden layers
 
 # expand the grid so that every possible combination of the above parameters is present. 
 # creating every possible combination to test
-grid.search.full<-expand.grid(regrate=regrate,droprate=droprate,lstmunits=lstmunits,neuron1=neuron1,neuron2=neuron2)
+grid.search.full<-expand.grid(regrate=regrate,droprate=droprate,droprate2=droprate2,lstmunits=lstmunits,neuron1=neuron1,neuron2=neuron2,neuron3=neuron3)
 
 # randomly select 20 of these models to fit. 
 set.seed(15)
@@ -222,6 +222,9 @@ for(i in 1:20){ # go through subset of the different parameter that was randomly
       layer_dropout(rate = grid.search.subset$droprate[i])%>%
       layer_dense(units = grid.search.subset$neuron2[i],activity_regularizer = regularizer_l2(l=grid.search.subset$regrate[i])) %>%
       layer_activation_leaky_relu()%>%
+      layer_dropout(rate = grid.search.subset$droprate2[i])%>%
+      layer_dense(units = grid.search.subset$neuron3[i],activity_regularizer = regularizer_l2(l=grid.search.subset$regrate[i])) %>%
+      layer_activation_leaky_relu()%>%
       layer_dense(units = 2, activation = 'sigmoid')
     
     rnn %>% compile(
@@ -238,7 +241,7 @@ for(i in 1:20){ # go through subset of the different parameter that was randomly
     
     
     val_loss[i,fold]<-min(history$metrics$val_loss)
-    best_epoch_loss[i,fold]<-which(history$metrics$val_loss==min(history$metrics$val_loss))
+    best_epoch_loss[i,fold]<-which(history$metrics$val_loss==min(history$metrics$val_loss))[1]
     val_auc[i,fold]<-max(history$metrics$val_auc)
     best_epoch_auc[i,fold]<-which(history$metrics$val_auc==max(history$metrics$val_auc))
     print(i)
@@ -280,13 +283,13 @@ best_epoch_auc[highest_val_auc]
 best_mean_val_auc=which(rowMeans(val_auc)==max(rowMeans(val_auc)))
 mean(val_auc[best_mean_val_auc[1],])
 mean(best_epoch_auc[best_mean_val_auc[1],])
-val_auc[best_mean_val_loss]      
+val_auc[best_mean_val_auc]      
 best_epoch_auc[best_mean_val_auc]
 
 
 ## training the best model ##
 # now fit the best model and evaluate test results (once for each fold)
-fold=1 # change this to 1,2,3,4,5 for each fold
+fold=5 # change this to 1,2,3,4,5 for each fold
 x_train_set<-x_data_train[folds[[fold]],,]
 y_train_set<-dummy_y_train[folds[[fold]],]
 
@@ -296,7 +299,8 @@ y_val_set<-dummy_y_train[-folds[[fold]],]
 
 # below need to be extracted and inputted as values so only need to change this line every time we have new optimal values
 # 3 hidden layers would need additional neuron3 (and droprate2 if want) variable
-best_param=tibble(regrate=1e-6, droprate=0.1, lstmunits=256, neuron1=128, neuron2=16)
+best_param=tibble(regrate=0.00001, droprate=0.15, droprate2=0.15,
+                  lstmunits=256, neuron1=256, neuron2=16,neuron3=8)
 
 set_random_seed(15)
 rnn = keras_model_sequential() # initialize model
@@ -326,10 +330,10 @@ history <- rnn %>% fit(
 
 ## evaluating the best model on test data ##
 # evaluate performance on test data
-evaluate(rnn, x_test, dummy_y_test) 
+evaluate(rnn, x_data_test, dummy_y_test) 
 
 # extract test data classifications
-preds<-predict(rnn, x=x_test)
+preds<-predict(rnn, x=x_data_test)
 
 species.predictions<-apply(preds,1,which.max)
 species.predictions<-as.factor(ifelse(species.predictions == 1, "0",
