@@ -27,38 +27,26 @@ processed_data <- processed_data %>% filter(is.na(aspectAngle) == F & is.na(Angl
 processed_data <- processed_data %>% filter(F100 > -1000)
 
 set.seed(73)
-split <- group_initial_split(processed_data, group = fishNum, strata = species, prop = 0.7)
+split <- group_initial_split(processed_data, group = fishNum, strata = species, prop = 0.9)
 train <- training(split)
-val_test <- testing(split)
-split2 <- group_initial_split(val_test, group = fishNum, strata = species, prop = 0.5)
-validate <- training(split2)
-test <- testing(split2)
+test <- testing(split)
 
 train%>%group_by(species)%>%count()
-validate%>%group_by(species)%>%count()
 test%>%group_by(species)%>%count()
 
-train <- slice_sample(train, n = 6378, by = species)
-validate <- slice_sample(validate, n = 1382, by = species)
-test <- slice_sample(test, n = 1374, by = species)
+train <- slice_sample(train, n = 8533, by = species)
+test <- slice_sample(test, n = 601, by = species)
 
 train%>%group_by(species)%>%count()
-validate%>%group_by(species)%>%count()
 test%>%group_by(species)%>%count()
 
 # Shuffle data
 set.seed(250)
-train$folds <- sample(1:5,dim(train)[1],replace=T)
+train_folds <- groupKFold(train$fishNum,k=5)
 train_indices <- sample(1:nrow(train))
 train <- train[train_indices, ] 
 
 set.seed(250)
-validate$folds <- sample(1:5,dim(validate)[1],replace=T)
-val_indices <- sample(1:nrow(validate))
-validate <- validate[val_indices, ] 
-
-set.seed(250)
-test$folds <- sample(1:5,dim(test)[1],replace=T)
 test_indices <- sample(1:nrow(test))
 test <- test[test_indices, ] 
 
@@ -66,8 +54,6 @@ train$y <- ifelse(train$species == "LT", 0, 1)
 dummy_y_train <- to_categorical(train$y, num_classes = 2)
 test$y <- ifelse(test$species == "LT", 0, 1)
 dummy_y_test <- to_categorical(test$y, num_classes = 2)
-validate$y <- ifelse(validate$species == "LT", 0, 1)
-dummy_y_val <- to_categorical(validate$y, num_classes = 2)
 
 
 x_train <- train %>% select(52:300)
@@ -83,12 +69,6 @@ x_test<-x_test+10*log10(450/test$totalLength)
 x_test<-exp(x_test/10)
 x_test<-x_test%>%scale(xmean,xsd)
 x_test<-as.matrix(x_test)
-
-x_validate <- validate %>% select(52:300)
-x_validate<-x_validate+10*log10(450/validate$totalLength)
-x_validate<-exp(x_validate/10)
-x_validate<-x_validate%>%scale(xmean,xsd)
-x_validate<-as.matrix(x_validate)
 
 # functions for adding layers conditionally
 
@@ -143,12 +123,11 @@ best_epoch<-matrix(nrow=20,ncol=5)
 
 for (i in 1:20){
   for (fold in 1:5){
-    fold_index <- which(train$folds == fold)
-    x_train_set <- x_train[-fold_index,]
-    y_train_set <- dummy_y_train[-fold_index,]
+    x_train_set <- x_train[train_folds[[fold]],]
+    y_train_set <- dummy_y_train[train_folds[[fold]],]
     
-    x_val_set <- x_train[fold_index,]
-    y_val_set <- dummy_y_train[fold_index,]
+    x_val_set<-x_train[-train_folds[[fold]],]
+    y_val_set<-dummy_y_train[-train_folds[[fold]],]
     
     input_shape <- c(249,1)
     set_random_seed(15)
@@ -232,10 +211,10 @@ for (i in 1:20){
     
     # Fit model (just resnet)
     resnet_history <- model %>% fit(
-      x_train,dummy_y_train,
+      x_train_set, y_train_set,
       batch_size = 1000,
       epochs = 75,
-      validation_data = list(x_validate, dummy_y_val)
+      validation_data = list(x_val_set, y_val_set)
     )
     
     val_loss[i,fold]<-min(resnet_history$metrics$val_loss)
@@ -252,10 +231,10 @@ print(best_epoch)
 
 fold = 1
 fold_index <- which(train$folds == fold)
-x_train_set <- x_train[-fold_index,,]
+x_train_set <- x_train[-fold_index,]
 y_train_set <- dummy_y_train[-fold_index,]
 
-x_val_set <- x_train[fold_index,,]
+x_val_set <- x_train[fold_index,]
 y_val_set <- dummy_y_train[fold_index,]
 
 # run up to here
@@ -347,10 +326,10 @@ model %>% compile(
 
 # Fit model (just resnet)
 resnet_history <- model %>% fit(
-  x_train,dummy_y_train,
+  x_train_set, y_train_set,
   batch_size = 1000,
   epochs = 75,
-  validation_data = list(x_validate, dummy_y_val)
+  validation_data = list(x_val_set, y_val_set)
 )
 
 
